@@ -208,7 +208,7 @@ def format_allowed_section(allowed):
         return []
     if ports.count(","):
         ports = ports.split(",")
-    else:
+    elif ports:
         ports = [ports]
     return_val = {"IPProtocol": protocol}
     if ports:
@@ -231,7 +231,7 @@ def sorted_allowed_list(allowed_list):
     # sort by protocol
     allowed_by_protocol = sorted(allowed_list,key=lambda x: x['IPProtocol'])
     # sort the ports list
-    return sorted(allowed_by_protocol, key=lambda y: y['ports'].sort())
+    return sorted(allowed_by_protocol, key=lambda y: y.get('ports', []).sort())
 
 
 def main():
@@ -257,7 +257,7 @@ def main():
     )
 
     if not HAS_LIBCLOUD:
-        module.exit_json(msg='libcloud with GCE support (0.17.0+) required for this module')
+        module.fail_json(msg='libcloud with GCE support (0.17.0+) required for this module')
 
     gce = gce_connect(module)
 
@@ -287,7 +287,7 @@ def main():
                 json_output['ipv4_range'] = network.cidr
             if network and mode == 'custom' and subnet_name:
                 if not hasattr(gce, 'ex_get_subnetwork'):
-                     module.fail_json(msg="Update libcloud to a more recent version (>1.0) that supports network 'mode' parameter", changed=False)
+                    module.fail_json(msg="Update libcloud to a more recent version (>1.0) that supports network 'mode' parameter", changed=False)
 
                 subnet = gce.ex_get_subnetwork(subnet_name, region=subnet_region)
                 json_output['subnet_name'] = subnet_name
@@ -357,6 +357,9 @@ def main():
                     fw.allowed = allowed_list
                     fw_changed = True
 
+                # source_ranges might not be set in the project; cast it to an empty list
+                fw.source_ranges = fw.source_ranges or []
+
                 # If these attributes are lists, we sort them first, then compare.
                 # Otherwise, we update if they differ.
                 if fw.source_ranges != src_range:
@@ -368,14 +371,20 @@ def main():
                         fw.source_ranges = src_range
                         fw_changed = True
 
+                # source_tags might not be set in the project; cast it to an empty list
+                fw.source_tags = fw.source_tags or []
+
                 if fw.source_tags != src_tags:
-                    if isinstance(src_range, list):
+                    if isinstance(src_tags, list):
                         if sorted(fw.source_tags) != sorted(src_tags):
                             fw.source_tags = src_tags
                             fw_changed = True
                     else:
                         fw.source_tags = src_tags
                         fw_changed = True
+
+                # target_tags might not be set in the project; cast it to an empty list
+                fw.target_tags = fw.target_tags or []
 
                 if fw.target_tags != target_tags:
                     if isinstance(target_tags, list):
@@ -450,12 +459,12 @@ def main():
             except Exception as e:
                 module.fail_json(msg=unexpected_error_msg(e), changed=False)
             if network:
-#                json_output['d4'] = 'deleting %s' % name
+                # json_output['d4'] = 'deleting %s' % name
                 try:
                     gce.ex_destroy_network(network)
                 except Exception as e:
                     module.fail_json(msg=unexpected_error_msg(e), changed=False)
-#                json_output['d5'] = 'deleted %s' % name
+                # json_output['d5'] = 'deleted %s' % name
                 changed = True
 
     json_output['changed'] = changed

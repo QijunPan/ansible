@@ -116,7 +116,9 @@ EXAMPLES = '''
 '''
 
 import datetime
-from ansible.module_utils.basic import *
+import re
+
+from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.pycompat24 import get_exception
 
 # exceptions --------------------------------------------------------------- {{{
@@ -324,10 +326,10 @@ class OSXDefaults(object):
         # Current value matches the given value. Nothing need to be done. Arrays need extra care
         if self.type == "array" and self.current_value is not None and not self.array_add and \
                 set(self.current_value) == set(self.value):
-                return False
+            return False
         elif self.type == "array" and self.current_value is not None and self.array_add and \
                 len(list(set(self.value) - set(self.current_value))) == 0:
-                return False
+            return False
         elif self.current_value == self.value:
             return False
 
@@ -380,6 +382,7 @@ def main():
             value=dict(
                 default=None,
                 required=False,
+                type='raw'
             ),
             state=dict(
                 default="present",

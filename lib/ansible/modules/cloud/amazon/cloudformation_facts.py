@@ -87,22 +87,22 @@ EXAMPLES = '''
     stack_policy: true
 
 # Example dictionary outputs for stack_outputs, stack_parameters and stack_resources:
-"stack_outputs": {
-    "ApplicationDatabaseName": "dazvlpr01xj55a.ap-southeast-2.rds.amazonaws.com",
-    ...
-},
-"stack_parameters": {
-    "DatabaseEngine": "mysql",
-    "DatabasePassword": "****",
-    ...
-},
-"stack_resources": {
-    "AutoscalingGroup": "dev-someapp-AutoscalingGroup-1SKEXXBCAN0S7",
-    "AutoscalingSecurityGroup": "sg-abcd1234",
-    "ApplicationDatabase": "dazvlpr01xj55a",
-    "EcsTaskDefinition": "arn:aws:ecs:ap-southeast-2:123456789:task-definition/dev-someapp-EcsTaskDefinition-1F2VM9QB0I7K9:1"
-    ...
-}
+# "stack_outputs": {
+#     "ApplicationDatabaseName": "dazvlpr01xj55a.ap-southeast-2.rds.amazonaws.com",
+#     ...
+# },
+# "stack_parameters": {
+#     "DatabaseEngine": "mysql",
+#     "DatabasePassword": "****",
+#     ...
+# },
+# "stack_resources": {
+#     "AutoscalingGroup": "dev-someapp-AutoscalingGroup-1SKEXXBCAN0S7",
+#     "AutoscalingSecurityGroup": "sg-abcd1234",
+#     "ApplicationDatabase": "dazvlpr01xj55a",
+#     "EcsTaskDefinition": "arn:aws:ecs:ap-southeast-2:123456789:task-definition/dev-someapp-EcsTaskDefinition-1F2VM9QB0I7K9:1"
+#     ...
+# }
 '''
 
 RETURN = '''
@@ -222,7 +222,7 @@ class CloudFormationServiceManager:
         result = response.get(result_key)
         next_token = response.get('NextToken')
         if not next_token:
-           return result
+            return result
         return result + self.paginated_response(func, result_key, next_token)
 
 def to_dict(items, key, value):
@@ -246,7 +246,7 @@ def main():
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=False)
 
     if not HAS_BOTO3:
-      module.fail_json(msg='boto3 is required.')
+        module.fail_json(msg='boto3 is required.')
 
     # Describe the stack
     service_mgr = CloudFormationServiceManager(module)

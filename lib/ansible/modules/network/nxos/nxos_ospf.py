@@ -92,12 +92,12 @@ from ansible.module_utils.shell import ShellError
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -297,12 +297,12 @@ def state_absent(module, proposed, candidate):
 
 def main():
     argument_spec = dict(
-            ospf=dict(required=True, type='str'),
-            state=dict(choices=['present', 'absent'], default='present',
+        ospf=dict(required=True, type='str'),
+        state=dict(choices=['present', 'absent'], default='present',
                        required=False),
-            include_defaults=dict(default=True),
-            config=dict(),
-            save=dict(type='bool', default=False)
+        include_defaults=dict(default=True),
+        config=dict(),
+        save=dict(type='bool', default=False)
     )
     module = get_network_module(argument_spec=argument_spec,
                         supports_check_mode=True)

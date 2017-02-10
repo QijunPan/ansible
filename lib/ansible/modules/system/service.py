@@ -45,7 +45,9 @@ options:
           - C(started)/C(stopped) are idempotent actions that will not run
             commands unless necessary.  C(restarted) will always bounce the
             service.  C(reloaded) will always reload. B(At least one of state
-            and enabled are required.)
+            and enabled are required.) Note that reloaded will start the
+            service if it is not already started, even if your chosen init
+            system wouldn't normally.
     sleep:
         required: false
         version_added: "1.3"
@@ -126,16 +128,21 @@ EXAMPLES = '''
 
 '''
 
-import platform
-import os
-import re
-import tempfile
-import shlex
-import select
-import time
-import string
 import glob
-from ansible.module_utils.service import fail_if_missing
+import os
+import platform
+import re
+import select
+import shlex
+import string
+import subprocess
+import tempfile
+import time
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 # The distutils module is not shipped with SUNWPython on Solaris.
 # It's in the SUNWPython-devel package which also contains development files
@@ -143,6 +150,12 @@ from ansible.module_utils.service import fail_if_missing
 # depend on LooseVersion, do not import it on Solaris.
 if platform.system() != 'SunOS':
     from distutils.version import LooseVersion
+
+from ansible.module_utils.basic import AnsibleModule, load_platform_subclass
+from ansible.module_utils.service import fail_if_missing
+from ansible.module_utils.six import PY2, b
+from ansible.module_utils._text import to_bytes, to_text
+
 
 class Service(object):
     """
@@ -240,11 +253,19 @@ class Service(object):
                 os._exit(0)
 
             # Start the command
-            if isinstance(cmd, basestring):
+            if PY2:
+                # Python 2.6's shlex.split can't handle text strings correctly
+                cmd = to_bytes(cmd, errors='surrogate_or_strict')
                 cmd = shlex.split(cmd)
+            else:
+                # Python3.x shex.split text strings.
+                cmd = to_text(cmd, errors='surrogate_or_strict')
+                cmd = [to_bytes(c, errors='surrogate_or_strict') for c in shlex.split(cmd)]
+            # In either of the above cases, pass a list of byte strings to Popen
+
             p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=lambda: os.close(pipe[1]))
-            stdout = ""
-            stderr = ""
+            stdout = b("")
+            stderr = b("")
             fds = [p.stdout, p.stderr]
             # Wait for all output, or until the main process is dead and its output is done.
             while fds:
@@ -263,7 +284,8 @@ class Service(object):
                     stderr += dat
             p.wait()
             # Return a JSON blob to parent
-            os.write(pipe[1], json.dumps([p.returncode, stdout, stderr]))
+            blob = json.dumps([p.returncode, to_text(stdout), to_text(stderr)])
+            os.write(pipe[1], to_bytes(blob, errors='surrogate_or_strict'))
             os.close(pipe[1])
             os._exit(0)
         elif pid == -1:
@@ -272,7 +294,7 @@ class Service(object):
             os.close(pipe[1])
             os.waitpid(pid, 0)
             # Wait for data from daemon process and process it.
-            data = ""
+            data = b("")
             while True:
                 rfd, wfd, efd = select.select([pipe[0]], [], [pipe[0]])
                 if pipe[0] in rfd:
@@ -280,7 +302,7 @@ class Service(object):
                     if not dat:
                         break
                     data += dat
-            return json.loads(data)
+            return json.loads(to_text(data, errors='surrogate_or_strict'))
 
     def check_ps(self):
         # Set ps flags
@@ -623,11 +645,9 @@ class LinuxService(Service):
             cleanout = status_stdout.lower().replace(self.name.lower(), '')
             if "stop" in cleanout:
                 self.running = False
-            elif "run" in cleanout and "not" in cleanout:
-                self.running = False
-            elif "run" in cleanout and "not" not in cleanout:
-                self.running = True
-            elif "start" in cleanout and "not" not in cleanout:
+            elif "run" in cleanout:
+                self.running = not ("not " in cleanout)
+            elif "start" in cleanout and "not " not in cleanout:
                 self.running = True
             elif 'could not access pid file' in cleanout:
                 self.running = False
@@ -1303,6 +1323,19 @@ class SunOSService(Service):
         if not self.svcadm_cmd:
             self.module.fail_json(msg='unable to find svcadm binary')
 
+        if self.svcadm_supports_sync():
+            self.svcadm_sync = '-s'
+        else:
+            self.svcadm_sync = ''
+
+    def svcadm_supports_sync(self):
+        # Support for synchronous restart/refresh is only supported on
+        # Oracle Solaris >= 11.2
+        for line in open('/etc/release', 'r').readlines():
+            m = re.match('\s+Oracle Solaris (\d+\.\d+).*', line.rstrip())
+            if m and m.groups()[0] >= 11.2:
+                return True
+
     def get_service_status(self):
         status = self.get_sunos_svcs_status()
         # Only 'online' is considered properly running. Everything else is off
@@ -1394,9 +1427,9 @@ class SunOSService(Service):
         elif self.action == 'stop':
             subcmd = "disable -st"
         elif self.action == 'reload':
-            subcmd = "refresh -s"
+            subcmd = "refresh %s" % (self.svcadm_sync)
         elif self.action == 'restart' and status == 'online':
-            subcmd = "restart -s"
+            subcmd = "restart %s" % (self.svcadm_sync)
         elif self.action == 'restart' and status != 'online':
             subcmd = "enable -rst"
 
@@ -1569,8 +1602,6 @@ def main():
             result['state'] = 'stopped'
 
     module.exit_json(**result)
-
-from ansible.module_utils.basic import *
 
 if __name__ == '__main__':
     main()

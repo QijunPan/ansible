@@ -391,7 +391,7 @@ class CloudflareAPI(object):
                 error_msg += "; Failed to parse API response: {0}".format(content)
 
         # received an error status but no data with details on what failed
-        if  (info['status'] not in [200,304]) and (result is None):
+        if (info['status'] not in [200,304]) and (result is None):
             self.module.fail_json(msg=error_msg)
 
         if not result['success']:
@@ -514,10 +514,10 @@ class CloudflareAPI(object):
     def ensure_dns_record(self,**kwargs):
         params = {}
         for param in ['port','priority','proto','proxied','service','ttl','type','record','value','weight','zone']:
-          if param in kwargs:
-              params[param] = kwargs[param]
-          else:
-              params[param] = getattr(self,param)
+            if param in kwargs:
+                params[param] = kwargs[param]
+            else:
+                params[param] = getattr(self,param)
 
         search_value = params['value']
         search_record = params['record']
@@ -628,18 +628,18 @@ def main():
         ),
         supports_check_mode = True,
         required_if = ([
-                ('state','present',['record','type']),
-                ('type','MX',['priority','value']),
-                ('type','SRV',['port','priority','proto','service','value','weight']),
-                ('type','A',['value']),
-                ('type','AAAA',['value']),
-                ('type','CNAME',['value']),
-                ('type','TXT',['value']),
-                ('type','NS',['value']),
-                ('type','SPF',['value'])
-            ]
-       ),
-       required_one_of = (
+            ('state','present',['record','type']),
+            ('type','MX',['priority','value']),
+            ('type','SRV',['port','priority','proto','service','value','weight']),
+            ('type','A',['value']),
+            ('type','AAAA',['value']),
+            ('type','CNAME',['value']),
+            ('type','TXT',['value']),
+            ('type','NS',['value']),
+            ('type','SPF',['value'])
+        ]
+        ),
+        required_one_of = (
             [['record','value','type']]
         )
     )

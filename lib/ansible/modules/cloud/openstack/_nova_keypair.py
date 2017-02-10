@@ -17,14 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
-try:
-    from novaclient.v1_1 import client as nova_client
-    from novaclient import exceptions as exc
-    HAS_NOVACLIENT = True
-except ImportError:
-    HAS_NOVACLIENT = False
-
 ANSIBLE_METADATA = {'status': ['deprecated'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -36,7 +28,7 @@ version_added: "1.2"
 author:
     - "Benno Joy (@bennojoy)"
     - "Michael DeHaan"
-deprecated: Deprecated in 2.0. Use os_keypair instead
+deprecated: Deprecated in 2.0. Use M(os_keypair) instead.
 short_description: Add/Delete key pair from nova
 description:
    - Add or Remove key pair from nova .
@@ -105,6 +97,15 @@ EXAMPLES = '''
     name: ansible_key
 '''
 
+import time
+try:
+    from novaclient.v1_1 import client as nova_client
+    from novaclient import exceptions as exc
+    HAS_NOVACLIENT = True
+except ImportError:
+    HAS_NOVACLIENT = False
+
+
 def main():
     argument_spec = openstack_argument_spec()
     argument_spec.update(dict(
@@ -135,7 +136,7 @@ def main():
                 if module.params['public_key'] and (module.params['public_key'] != key.public_key ):
                     module.fail_json(msg = "name {} present but key hash not the same as offered.  Delete key first.".format(key['name']))
                 else:
-                    module.exit_json(changed = False, result = "Key present")            
+                    module.exit_json(changed = False, result = "Key present")
         try:
             key = nova.keypairs.create(module.params['name'], module.params['public_key'])
         except Exception as e:

@@ -32,15 +32,6 @@ author:
 options: {}
 '''
 
-import platform
-
-HAVE_XENAPI = False
-try:
-    import XenAPI
-    HAVE_XENAPI = True
-except ImportError:
-    pass
-
 EXAMPLES = '''
 - name: Gather facts from xenserver
    xenserver:
@@ -50,13 +41,25 @@ EXAMPLES = '''
   with_items: "{{ xs_vms.keys() }}"
   when: xs_vms[item]['power_state'] == "Running"
 
-TASK: [Print running VMs] ***********************************************************
-skipping: [10.13.0.22] => (item=CentOS 4.7 (32-bit))
-ok: [10.13.0.22] => (item=Control domain on host: 10.0.13.22) => {
-    "item": "Control domain on host: 10.0.13.22",
-    "msg": "Control domain on host: 10.0.13.22"
-}
+# Which will print:
+#
+# TASK: [Print running VMs] ***********************************************************
+# skipping: [10.13.0.22] => (item=CentOS 4.7 (32-bit))
+# ok: [10.13.0.22] => (item=Control domain on host: 10.0.13.22) => {
+#     "item": "Control domain on host: 10.0.13.22",
+#     "msg": "Control domain on host: 10.0.13.22"
+# }
 '''
+
+import platform
+
+HAVE_XENAPI = False
+try:
+    import XenAPI
+    HAVE_XENAPI = True
+except ImportError:
+    pass
+
 
 class XenServerFacts:
     def __init__(self):
@@ -152,7 +155,7 @@ def get_vms(session):
 
     vms = change_keys(recs, key='uuid')
     for vm in vms.values():
-       xs_vms[vm['name_label']] = vm
+        xs_vms[vm['name_label']] = vm
     return xs_vms
 
 
@@ -163,7 +166,7 @@ def get_srs(session):
         return None
     srs = change_keys(recs, key='uuid')
     for sr in srs.values():
-       xs_srs[sr['name_label']] = sr
+        xs_srs[sr['name_label']] = sr
     return xs_srs
 
 def main():

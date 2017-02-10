@@ -84,7 +84,7 @@ options:
 EXAMPLES = '''
   # This will also create a default DB user with the same
   # name as the database, and the specified password.
-  
+
   - name: Create a database
     webfaction_db:
       name: "{{webfaction_user}}_db1"
@@ -114,7 +114,7 @@ def main():
             type = dict(required=True),
             password = dict(required=False, default=None),
             login_name = dict(required=True),
-            login_password = dict(required=True),
+            login_password = dict(required=True, no_log=True),
             machine = dict(required=False, default=False),
         ),
         supports_check_mode=True
@@ -145,7 +145,7 @@ def main():
     existing_user = user_map.get(db_name)
 
     result = {}
-    
+
     # Here's where the real stuff happens
 
     if db_state == 'present':
@@ -175,16 +175,16 @@ def main():
 
         # If this isn't a dry run...
         if not module.check_mode:
-  
+
             if not (existing_db or existing_user):
                 module.exit_json(changed = False,)
-                
+
             if existing_db:
                 # Delete the db if it exists
                 result.update(
                     webfaction.delete_db(session_id, db_name, db_type)
                 )
-                    
+
             if existing_user:
                 # Delete the default db user if it exists
                 result.update(

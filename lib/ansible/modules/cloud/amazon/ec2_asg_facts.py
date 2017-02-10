@@ -210,7 +210,8 @@ def match_asg_tags(tags_to_match, asg):
         for tag in asg['Tags']:
             if key == tag['Key'] and value == tag['Value']:
                 break
-        else: return False
+        else:
+            return False
     return True
 
 def find_asgs(conn, module, name=None, tags=None):
@@ -298,7 +299,8 @@ def find_asgs(conn, module, name=None, tags=None):
     """
 
     try:
-        asgs = conn.describe_auto_scaling_groups()
+        asgs_paginator = conn.get_paginator('describe_auto_scaling_groups')
+        asgs = asgs_paginator.paginate().build_full_result()
     except ClientError as e:
         module.fail_json(msg=e.message, **camel_dict_to_snake_dict(e.response))
 

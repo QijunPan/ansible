@@ -16,13 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    import shade
-    HAS_SHADE = True
-except ImportError:
-    HAS_SHADE = False
-
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -79,6 +72,12 @@ EXAMPLES = '''
     container: config
 '''
 
+try:
+    import shade
+    HAS_SHADE = True
+except ImportError:
+    HAS_SHADE = False
+
 
 def process_object(
         cloud_obj, container, name, filename, container_access, **kwargs):
@@ -100,7 +99,7 @@ def process_object(
         if container_obj:
             if name:
                 if cloud_obj.get_object_metadata(container, name):
-                  cloud_obj.delete_object(container, name)
+                    cloud_obj.delete_object(container, name)
                 changed= True
             else:
                 cloud_obj.delete_container(container)

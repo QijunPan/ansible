@@ -135,11 +135,11 @@ def update_roles(role_facts, cursor, role,
         cursor.execute("revoke {0} from {1}".format(assigned_role, role))
     for assigned_role in set(required) - set(existing):
         cursor.execute("grant {0} to {1}".format(assigned_role, role))
-        
+
 def check(role_facts, role, assigned_roles):
     role_key = role.lower()
     if role_key not in role_facts:
-       return False
+        return False
     if assigned_roles and cmp(sorted(assigned_roles), sorted(role_facts[role_key]['assigned_roles'])) != 0:
         return False
     return True
@@ -185,7 +185,7 @@ def main():
             cluster=dict(default='localhost'),
             port=dict(default='5433'),
             login_user=dict(default='dbadmin'),
-            login_password=dict(default=None),
+            login_password=dict(default=None, no_log=True),
         ), supports_check_mode = True)
 
     if not pyodbc_found:

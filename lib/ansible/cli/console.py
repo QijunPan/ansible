@@ -198,15 +198,15 @@ class ConsoleCLI(CLI, cmd.Cmd):
             self._tqm = None
             try:
                 self._tqm = TaskQueueManager(
-                        inventory=self.inventory,
-                        variable_manager=self.variable_manager,
-                        loader=self.loader,
-                        options=self.options,
-                        passwords=self.passwords,
-                        stdout_callback=cb,
-                        run_additional_callbacks=C.DEFAULT_LOAD_CALLBACK_PLUGINS,
-                        run_tree=False,
-                    )
+                    inventory=self.inventory,
+                    variable_manager=self.variable_manager,
+                    loader=self.loader,
+                    options=self.options,
+                    passwords=self.passwords,
+                    stdout_callback=cb,
+                    run_additional_callbacks=C.DEFAULT_LOAD_CALLBACK_PLUGINS,
+                    run_tree=False,
+                )
 
                 result = self._tqm.run(play)
             finally:
@@ -423,7 +423,7 @@ class ConsoleCLI(CLI, cmd.Cmd):
             vault_pass = CLI.read_vault_password_file(self.options.vault_password_file, loader=self.loader)
             self.loader.set_vault_password(vault_pass)
         elif self.options.ask_vault_pass:
-            vault_pass = self.ask_vault_passwords()[0]
+            vault_pass = self.ask_vault_passwords()
             self.loader.set_vault_password(vault_pass)
 
         self.variable_manager = VariableManager()

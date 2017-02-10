@@ -1,5 +1,6 @@
 # (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>
 # Copyright 2015 Abhijit Menon-Sen <ams@2ndQuadrant.com>
+# Copyright 2017 Toshio Kuratomi <tkuratomi@ansible.com>
 #
 # This file is part of Ansible
 #
@@ -21,20 +22,21 @@ __metaclass__ = type
 
 import errno
 import fcntl
+import hashlib
 import os
 import pty
-import select
 import subprocess
 import time
 
 from ansible import constants as C
+from ansible.compat import selectors
 from ansible.compat.six import PY3, text_type, binary_type
 from ansible.compat.six.moves import shlex_quote
 from ansible.errors import AnsibleError, AnsibleConnectionFailure, AnsibleFileNotFound
 from ansible.errors import AnsibleOptionsError
 from ansible.module_utils.basic import BOOLEANS
 from ansible.module_utils._text import to_bytes, to_native, to_text
-from ansible.plugins.connection import ConnectionBase
+from ansible.plugins.connection import ConnectionBase, BUFSIZE
 from ansible.utils.path import unfrackpath, makedirs_safe
 
 boolean = C.mk_boolean
@@ -59,6 +61,10 @@ class Connection(ConnectionBase):
         super(Connection, self).__init__(*args, **kwargs)
 
         self.host = self._play_context.remote_addr
+        self.port = self._play_context.port
+        self.user = self._play_context.remote_user
+        self.control_path = C.ANSIBLE_SSH_CONTROL_PATH
+        self.control_path_dir = C.ANSIBLE_SSH_CONTROL_PATH_DIR
 
     # The connection is created by running ssh/scp/sftp from the exec_command,
     # put_file, and fetch_file methods, so we don't need to do any connection
@@ -66,6 +72,16 @@ class Connection(ConnectionBase):
 
     def _connect(self):
         return self
+
+    @staticmethod
+    def _create_control_path(host, port, user):
+        '''Make a hash for the controlpath based on con attributes'''
+        pstring = '%s-%s-%s' % (host, port, user)
+        m = hashlib.sha1()
+        m.update(to_bytes(pstring))
+        digest = m.hexdigest()
+        cpath = '%(directory)s/' + digest[:10]
+        return cpath
 
     @staticmethod
     def _sshpass_available():
@@ -143,7 +159,10 @@ class Connection(ConnectionBase):
             self.sshpass_pipe = os.pipe()
             b_command += [b'sshpass', b'-d' + to_bytes(self.sshpass_pipe[0], nonstring='simplerepr', errors='surrogate_or_strict')]
 
-        b_command += [to_bytes(binary, errors='surrogate_or_strict')]
+        if binary == 'ssh':
+            b_command += [to_bytes(self._play_context.ssh_executable, errors='surrogate_or_strict')]
+        else:
+            b_command += [to_bytes(binary, errors='surrogate_or_strict')]
 
         #
         # Next, additional arguments based on the configuration.
@@ -202,8 +221,8 @@ class Connection(ConnectionBase):
         if user:
             self._add_args(b_command,
                     (b"-o", b"User=" + to_bytes(self._play_context.remote_user, errors='surrogate_or_strict')),
-                    u"ANSIBLE_REMOTE_USER/remote_user/ansible_user/user/-u set"
-                )
+                u"ANSIBLE_REMOTE_USER/remote_user/ansible_user/user/-u set"
+            )
 
         self._add_args(b_command,
             (b"-o", b"ConnectTimeout=" + to_bytes(self._play_context.timeout, errors='surrogate_or_strict', nonstring='simplerepr')),
@@ -228,7 +247,7 @@ class Connection(ConnectionBase):
             self._persistent = True
 
             if not controlpath:
-                cpdir = unfrackpath(C.ANSIBLE_SSH_CONTROL_PATH_DIR)
+                cpdir = unfrackpath(self.control_path_dir)
                 b_cpdir = to_bytes(cpdir, errors='surrogate_or_strict')
 
                 # The directory must exist and be writable.
@@ -236,7 +255,13 @@ class Connection(ConnectionBase):
                 if not os.access(b_cpdir, os.W_OK):
                     raise AnsibleError("Cannot write to ControlPath %s" % to_native(cpdir))
 
-                b_args = (b"-o", b"ControlPath=" + to_bytes(C.ANSIBLE_SSH_CONTROL_PATH % dict(directory=cpdir), errors='surrogate_or_strict'))
+                if not self.control_path:
+                    self.control_path = self._create_control_path(
+                        self.host,
+                        self.port,
+                        self.user
+                    )
+                b_args = (b"-o", b"ControlPath=" + to_bytes(self.control_path % dict(directory=cpdir), errors='surrogate_or_strict'))
                 self._add_args(b_command, b_args, u"found only ControlPersist; added ControlPath")
 
         # Finally, we add any caller-supplied extras.
@@ -258,7 +283,7 @@ class Connection(ConnectionBase):
             fh.write(to_bytes(in_data))
             fh.close()
         except (OSError, IOError):
-            raise AnsibleConnectionFailure('SSH Error: data could not be sent to the remote host. Make sure this host can be reached over ssh')
+            raise AnsibleConnectionFailure('SSH Error: data could not be sent to remote host "%s". Make sure this host can be reached over ssh' % self.host)
 
         display.debug('Sent initial data (%d bytes)' % len(in_data))
 
@@ -419,148 +444,158 @@ class Connection(ConnectionBase):
         # they will race each other when we can't connect, and the connect
         # timeout usually fails
         timeout = 2 + self._play_context.timeout
-        rpipes = [p.stdout, p.stderr]
-        for fd in rpipes:
+        for fd in (p.stdout, p.stderr):
             fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
 
-        # If we can send initial data without waiting for anything, we do so
-        # before we call select.
+        ### TODO: bcoca would like to use SelectSelector() when open
+        # filehandles is low, then switch to more efficient ones when higher.
+        # select is faster when filehandles is low.
+        selector = selectors.DefaultSelector()
+        selector.register(p.stdout, selectors.EVENT_READ)
+        selector.register(p.stderr, selectors.EVENT_READ)
 
+        # If we can send initial data without waiting for anything, we do so
+        # before we start polling
         if states[state] == 'ready_to_send' and in_data:
             self._send_initial_data(stdin, in_data)
             state += 1
 
-        while True:
-            rfd, wfd, efd = select.select(rpipes, [], [], timeout)
+        try:
+            while True:
+                events = selector.select(timeout)
 
-            # We pay attention to timeouts only while negotiating a prompt.
+                # We pay attention to timeouts only while negotiating a prompt.
 
-            if not rfd:
-                if state <= states.index('awaiting_escalation'):
-                    # If the process has already exited, then it's not really a
-                    # timeout; we'll let the normal error handling deal with it.
-                    if p.poll() is not None:
+                if not events:
+                    # We timed out
+                    if state <= states.index('awaiting_escalation'):
+                        # If the process has already exited, then it's not really a
+                        # timeout; we'll let the normal error handling deal with it.
+                        if p.poll() is not None:
+                            break
+                        self._terminate_process(p)
+                        raise AnsibleError('Timeout (%ds) waiting for privilege escalation prompt: %s' % (timeout, to_native(b_stdout)))
+
+                # Read whatever output is available on stdout and stderr, and stop
+                # listening to the pipe if it's been closed.
+
+                for key, event in events:
+                    if key.fileobj == p.stdout:
+                        b_chunk = p.stdout.read()
+                        if b_chunk == b'':
+                            # stdout has been closed, stop watching it
+                            selector.unregister(p.stdout)
+                            # When ssh has ControlMaster (+ControlPath/Persist) enabled, the
+                            # first connection goes into the background and we never see EOF
+                            # on stderr. If we see EOF on stdout, lower the select timeout
+                            # to reduce the time wasted selecting on stderr if we observe
+                            # that the process has not yet existed after this EOF. Otherwise
+                            # we may spend a long timeout period waiting for an EOF that is
+                            # not going to arrive until the persisted connection closes.
+                            timeout = 1
+                        b_tmp_stdout += b_chunk
+                        display.debug("stdout chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
+                    elif key.fileobj == p.stderr:
+                        b_chunk = p.stderr.read()
+                        if b_chunk == b'':
+                            # stderr has been closed, stop watching it
+                            selector.unregister(p.stderr)
+                        b_tmp_stderr += b_chunk
+                        display.debug("stderr chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
+
+                # We examine the output line-by-line until we have negotiated any
+                # privilege escalation prompt and subsequent success/error message.
+                # Afterwards, we can accumulate output without looking at it.
+
+                if state < states.index('ready_to_send'):
+                    if b_tmp_stdout:
+                        b_output, b_unprocessed = self._examine_output('stdout', states[state], b_tmp_stdout, sudoable)
+                        b_stdout += b_output
+                        b_tmp_stdout = b_unprocessed
+
+                    if b_tmp_stderr:
+                        b_output, b_unprocessed = self._examine_output('stderr', states[state], b_tmp_stderr, sudoable)
+                        b_stderr += b_output
+                        b_tmp_stderr = b_unprocessed
+                else:
+                    b_stdout += b_tmp_stdout
+                    b_stderr += b_tmp_stderr
+                    b_tmp_stdout = b_tmp_stderr = b''
+
+                # If we see a privilege escalation prompt, we send the password.
+                # (If we're expecting a prompt but the escalation succeeds, we
+                # didn't need the password and can carry on regardless.)
+
+                if states[state] == 'awaiting_prompt':
+                    if self._flags['become_prompt']:
+                        display.debug('Sending become_pass in response to prompt')
+                        stdin.write(to_bytes(self._play_context.become_pass) + b'\n')
+                        self._flags['become_prompt'] = False
+                        state += 1
+                    elif self._flags['become_success']:
+                        state += 1
+
+                # We've requested escalation (with or without a password), now we
+                # wait for an error message or a successful escalation.
+
+                if states[state] == 'awaiting_escalation':
+                    if self._flags['become_success']:
+                        display.debug('Escalation succeeded')
+                        self._flags['become_success'] = False
+                        state += 1
+                    elif self._flags['become_error']:
+                        display.debug('Escalation failed')
+                        self._terminate_process(p)
+                        self._flags['become_error'] = False
+                        raise AnsibleError('Incorrect %s password' % self._play_context.become_method)
+                    elif self._flags['become_nopasswd_error']:
+                        display.debug('Escalation requires password')
+                        self._terminate_process(p)
+                        self._flags['become_nopasswd_error'] = False
+                        raise AnsibleError('Missing %s password' % self._play_context.become_method)
+                    elif self._flags['become_prompt']:
+                        # This shouldn't happen, because we should see the "Sorry,
+                        # try again" message first.
+                        display.debug('Escalation prompt repeated')
+                        self._terminate_process(p)
+                        self._flags['become_prompt'] = False
+                        raise AnsibleError('Incorrect %s password' % self._play_context.become_method)
+
+                # Once we're sure that the privilege escalation prompt, if any, has
+                # been dealt with, we can send any initial data and start waiting
+                # for output.
+
+                if states[state] == 'ready_to_send':
+                    if in_data:
+                        self._send_initial_data(stdin, in_data)
+                    state += 1
+
+                # Now we're awaiting_exit: has the child process exited? If it has,
+                # and we've read all available output from it, we're done.
+
+                if p.poll() is not None:
+                    if not selector.get_map() or not events:
                         break
-                    self._terminate_process(p)
-                    raise AnsibleError('Timeout (%ds) waiting for privilege escalation prompt: %s' % (timeout, to_native(b_stdout)))
+                    # We should not see further writes to the stdout/stderr file
+                    # descriptors after the process has closed, set the select
+                    # timeout to gather any last writes we may have missed.
+                    timeout = 0
+                    continue
 
-            # Read whatever output is available on stdout and stderr, and stop
-            # listening to the pipe if it's been closed.
+                # If the process has not yet exited, but we've already read EOF from
+                # its stdout and stderr (and thus no longer watching any file
+                # descriptors), we can just wait for it to exit.
 
-            if p.stdout in rfd:
-                b_chunk = p.stdout.read()
-                if b_chunk == b'':
-                    rpipes.remove(p.stdout)
-                    # When ssh has ControlMaster (+ControlPath/Persist) enabled, the
-                    # first connection goes into the background and we never see EOF
-                    # on stderr. If we see EOF on stdout, lower the select timeout
-                    # to reduce the time wasted selecting on stderr if we observe
-                    # that the process has not yet existed after this EOF. Otherwise
-                    # we may spend a long timeout period waiting for an EOF that is
-                    # not going to arrive until the persisted connection closes.
-                    timeout = 1
-                b_tmp_stdout += b_chunk
-                display.debug("stdout chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
-
-            if p.stderr in rfd:
-                b_chunk = p.stderr.read()
-                if b_chunk == b'':
-                    rpipes.remove(p.stderr)
-                b_tmp_stderr += b_chunk
-                display.debug("stderr chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
-
-            # We examine the output line-by-line until we have negotiated any
-            # privilege escalation prompt and subsequent success/error message.
-            # Afterwards, we can accumulate output without looking at it.
-
-            if state < states.index('ready_to_send'):
-                if b_tmp_stdout:
-                    b_output, b_unprocessed = self._examine_output('stdout', states[state], b_tmp_stdout, sudoable)
-                    b_stdout += b_output
-                    b_tmp_stdout = b_unprocessed
-
-                if b_tmp_stderr:
-                    b_output, b_unprocessed = self._examine_output('stderr', states[state], b_tmp_stderr, sudoable)
-                    b_stderr += b_output
-                    b_tmp_stderr = b_unprocessed
-            else:
-                b_stdout += b_tmp_stdout
-                b_stderr += b_tmp_stderr
-                b_tmp_stdout = b_tmp_stderr = b''
-
-            # If we see a privilege escalation prompt, we send the password.
-            # (If we're expecting a prompt but the escalation succeeds, we
-            # didn't need the password and can carry on regardless.)
-
-            if states[state] == 'awaiting_prompt':
-                if self._flags['become_prompt']:
-                    display.debug('Sending become_pass in response to prompt')
-                    stdin.write(to_bytes(self._play_context.become_pass) + b'\n')
-                    self._flags['become_prompt'] = False
-                    state += 1
-                elif self._flags['become_success']:
-                    state += 1
-
-            # We've requested escalation (with or without a password), now we
-            # wait for an error message or a successful escalation.
-
-            if states[state] == 'awaiting_escalation':
-                if self._flags['become_success']:
-                    display.debug('Escalation succeeded')
-                    self._flags['become_success'] = False
-                    state += 1
-                elif self._flags['become_error']:
-                    display.debug('Escalation failed')
-                    self._terminate_process(p)
-                    self._flags['become_error'] = False
-                    raise AnsibleError('Incorrect %s password' % self._play_context.become_method)
-                elif self._flags['become_nopasswd_error']:
-                    display.debug('Escalation requires password')
-                    self._terminate_process(p)
-                    self._flags['become_nopasswd_error'] = False
-                    raise AnsibleError('Missing %s password' % self._play_context.become_method)
-                elif self._flags['become_prompt']:
-                    # This shouldn't happen, because we should see the "Sorry,
-                    # try again" message first.
-                    display.debug('Escalation prompt repeated')
-                    self._terminate_process(p)
-                    self._flags['become_prompt'] = False
-                    raise AnsibleError('Incorrect %s password' % self._play_context.become_method)
-
-            # Once we're sure that the privilege escalation prompt, if any, has
-            # been dealt with, we can send any initial data and start waiting
-            # for output.
-
-            if states[state] == 'ready_to_send':
-                if in_data:
-                    self._send_initial_data(stdin, in_data)
-                state += 1
-
-            # Now we're awaiting_exit: has the child process exited? If it has,
-            # and we've read all available output from it, we're done.
-
-            if p.poll() is not None:
-                if not rpipes or not rfd:
+                elif not selector.get_map():
+                    p.wait()
                     break
-                # We should not see further writes to the stdout/stderr file
-                # descriptors after the process has closed, set the select
-                # timeout to gather any last writes we may have missed.
-                timeout = 0
-                continue
 
-            # If the process has not yet exited, but we've already read EOF from
-            # its stdout and stderr (and thus removed both from rpipes), we can
-            # just wait for it to exit.
-
-            elif not rpipes:
-                p.wait()
-                break
-
-            # Otherwise there may still be outstanding data to read.
-
-        # close stdin after process is terminated and stdout/stderr are read
-        # completely (see also issue #848)
-        stdin.close()
+                # Otherwise there may still be outstanding data to read.
+        finally:
+            selector.close()
+            # close stdin after process is terminated and stdout/stderr are read
+            # completely (see also issue #848)
+            stdin.close()
 
         if C.HOST_KEY_CHECKING:
             if cmd[0] == b"sshpass" and p.returncode == 6:
@@ -571,7 +606,7 @@ class Connection(ConnectionBase):
             raise AnsibleError('using -c ssh on certain older ssh versions may not support ControlPersist, set ANSIBLE_SSH_ARGS="" (or ssh_args in [ssh_connection] section of the config file) before running again')
 
         if p.returncode == 255 and in_data and checkrc:
-            raise AnsibleConnectionFailure('SSH Error: data could not be sent to the remote host. Make sure this host can be reached over ssh')
+            raise AnsibleConnectionFailure('SSH Error: data could not be sent to remote host "%s". Make sure this host can be reached over ssh' % self.host)
 
         return (p.returncode, b_stdout, b_stderr)
 
@@ -587,13 +622,10 @@ class Connection(ConnectionBase):
         # data into /usr/bin/python inside a tty automatically invokes the
         # python interactive-mode but the modules are not compatible with the
         # interactive-mode ("unexpected indent" mainly because of empty lines)
-
-        ssh_executable = self._play_context.ssh_executable
-
         if not in_data and sudoable:
-            args = (ssh_executable, '-tt', self.host, cmd)
+            args = ('ssh', '-tt', self.host, cmd)
         else:
-            args = (ssh_executable, self.host, cmd)
+            args = ('ssh', self.host, cmd)
 
         cmd = self._build_command(*args)
         (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=sudoable)
@@ -605,52 +637,78 @@ class Connection(ConnectionBase):
         # accept them for hostnames and IPv4 addresses too.
         host = '[%s]' % self.host
 
-        # since this can be a non-bool now, we need to handle it correctly
-        scp_if_ssh = C.DEFAULT_SCP_IF_SSH
-        if not isinstance(scp_if_ssh, bool):
-            scp_if_ssh = scp_if_ssh.lower()
-            if scp_if_ssh in BOOLEANS:
-                scp_if_ssh = boolean(scp_if_ssh)
-            elif scp_if_ssh != 'smart':
-                raise AnsibleOptionsError('scp_if_ssh needs to be one of [smart|True|False]')
+        # Transfer methods to try
+        methods = []
 
-        # create a list of commands to use based on config options
-        methods = ['sftp']
-        if scp_if_ssh == 'smart':
-            methods.append('scp')
-        elif scp_if_ssh:
-            methods = ['scp']
+        # Use the transfer_method option if set, otherwise use scp_if_ssh
+        ssh_transfer_method = self._play_context.ssh_transfer_method
+        if ssh_transfer_method is not None:
+            if not (ssh_transfer_method in ('smart', 'sftp', 'scp', 'piped')):
+                raise AnsibleOptionsError('transfer_method needs to be one of [smart|sftp|scp|piped]')
+            if ssh_transfer_method == 'smart':
+                methods = ['sftp', 'scp', 'piped']
+            else:
+                methods = [ssh_transfer_method]
+        else:
+            # since this can be a non-bool now, we need to handle it correctly
+            scp_if_ssh = C.DEFAULT_SCP_IF_SSH
+            if not isinstance(scp_if_ssh, bool):
+                scp_if_ssh = scp_if_ssh.lower()
+                if scp_if_ssh in BOOLEANS:
+                    scp_if_ssh = boolean(scp_if_ssh)
+                elif scp_if_ssh != 'smart':
+                    raise AnsibleOptionsError('scp_if_ssh needs to be one of [smart|True|False]')
+            if scp_if_ssh == 'smart':
+                methods = ['sftp', 'scp', 'piped']
+            elif scp_if_ssh == True:
+                methods = ['scp']
+            else:
+                methods = ['sftp']
 
         success = False
         res = None
         for method in methods:
+            returncode = stdout = stderr = None
             if method == 'sftp':
                 cmd = self._build_command('sftp', to_bytes(host))
                 in_data = u"{0} {1} {2}\n".format(sftp_action, shlex_quote(in_path), shlex_quote(out_path))
+                in_data = to_bytes(in_data, nonstring='passthru')
+                (returncode, stdout, stderr) = self._run(cmd, in_data, checkrc=False)
             elif method == 'scp':
                 if sftp_action == 'get':
                     cmd = self._build_command('scp', u'{0}:{1}'.format(host, shlex_quote(in_path)), out_path)
                 else:
                     cmd = self._build_command('scp', in_path, u'{0}:{1}'.format(host, shlex_quote(out_path)))
                 in_data = None
+                (returncode, stdout, stderr) = self._run(cmd, in_data, checkrc=False)
+            elif method == 'piped':
+                if sftp_action == 'get':
+                    # we pass sudoable=False to disable pty allocation, which
+                    # would end up mixing stdout/stderr and screwing with newlines
+                    (returncode, stdout, stderr) = self._exec_command('dd if=%s bs=%s' % (in_path, BUFSIZE), sudoable=False)
+                    out_file = open(to_bytes(out_path, errors='surrogate_or_strict'), 'wb+')
+                    out_file.write(stdout)
+                    out_file.close()
+                else:
+                    in_data = open(to_bytes(in_path, errors='surrogate_or_strict'), 'rb').read()
+                    in_data = to_bytes(in_data, nonstring='passthru')
+                    (returncode, stdout, stderr) = self._exec_command('dd of=%s bs=%s' % (out_path, BUFSIZE), in_data=in_data)
 
-            in_data = to_bytes(in_data, nonstring='passthru')
-            (returncode, stdout, stderr) = self._run(cmd, in_data, checkrc=False)
             # Check the return code and rollover to next method if failed
             if returncode == 0:
                 success = True
                 break
             else:
                 # If not in smart mode, the data will be printed by the raise below
-                if scp_if_ssh == 'smart':
+                if len(methods) > 1:
                     display.warning(msg='%s transfer mechanism failed on %s. Use ANSIBLE_DEBUG=1 to see detailed information' % (method, host))
                     display.debug(msg='%s' % to_native(stdout))
                     display.debug(msg='%s' % to_native(stderr))
                 res = (returncode, stdout, stderr)
 
         if not success:
-            raise AnsibleError("failed to transfer file to {0}:\n{1}\n{2}"\
-                    .format(to_native(out_path), to_native(res[1]), to_native(res[2])))
+            raise AnsibleError("failed to transfer file {0} to {1}:\n{2}\n{3}"\
+            .format(to_native(in_path), to_native(out_path), to_native(res[1]), to_native(res[2])))
 
     #
     # Main public methods
@@ -726,7 +784,7 @@ class Connection(ConnectionBase):
         # temporarily disabled as we are forced to currently close connections after every task because of winrm
         # if self._connected and self._persistent:
         #     ssh_executable = self._play_context.ssh_executable
-        #     cmd = self._build_command(ssh_executable, '-O', 'stop', self.host)
+        #     cmd = self._build_command('ssh', '-O', 'stop', self.host)
         #
         #     cmd = map(to_bytes, cmd)
         #     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

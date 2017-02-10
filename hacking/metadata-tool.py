@@ -91,7 +91,7 @@ def seek_end_of_dict(module_data, start_line, start_col, next_node_line, next_no
 
         ANSIBLE_METADATA = {}EOF
     """
-    if next_node_line == None:
+    if next_node_line is None:
         # The dict is the last statement in the file
         snippet = module_data.splitlines()[start_line:]
         next_node_col = 0
@@ -560,8 +560,12 @@ def report(version=None):
 
     print('== Summary ==')
     print('No Metadata: {0}             Has Metadata: {1}'.format(len(no_metadata), len(has_metadata)))
-    print('Supported by core: {0}      Supported by community: {1}    Supported by committer: {2}'.format(len(support['core']), len(support['community']), len(support['committer'])))
-    print('Status StableInterface: {0} Status Preview: {1}            Status Deprecated: {2}      Status Removed: {3}'.format(len(status['stableinterface']), len(status['preview']), len(status['deprecated']), len(status['removed'])))
+    print('Supported by core: {0}      Supported by community: {1}    Supported by committer: {2}'.format(len(support['core']), len(support['community']),
+                                                                                                          len(support['committer'])))
+    print('Status StableInterface: {0} Status Preview: {1}            Status Deprecated: {2}      Status Removed: {3}'.format(len(status['stableinterface']),
+                                                                                                                              len(status['preview']),
+                                                                                                                              len(status['deprecated']),
+                                                                                                                              len(status['removed'])))
 
     return 0
 

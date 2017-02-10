@@ -77,7 +77,7 @@ class AdHocCLI(CLI):
         if len(self.args) < 1:
             raise AnsibleOptionsError("Missing target hosts")
         elif len(self.args) > 1:
-            raise AnsibleOptionsError("Extranous options or arguments")
+            raise AnsibleOptionsError("Extraneous options or arguments")
 
         display.verbosity = self.options.verbosity
         self.validate_conflicts(runas_opts=True, vault_opts=True, fork_opts=True)
@@ -187,15 +187,15 @@ class AdHocCLI(CLI):
         self._tqm = None
         try:
             self._tqm = TaskQueueManager(
-                    inventory=inventory,
-                    variable_manager=variable_manager,
-                    loader=loader,
-                    options=self.options,
-                    passwords=passwords,
-                    stdout_callback=cb,
-                    run_additional_callbacks=C.DEFAULT_LOAD_CALLBACK_PLUGINS,
-                    run_tree=run_tree,
-                )
+                inventory=inventory,
+                variable_manager=variable_manager,
+                loader=loader,
+                options=self.options,
+                passwords=passwords,
+                stdout_callback=cb,
+                run_additional_callbacks=C.DEFAULT_LOAD_CALLBACK_PLUGINS,
+                run_tree=run_tree,
+            )
 
             result = self._tqm.run(play)
         finally:

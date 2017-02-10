@@ -25,7 +25,7 @@ DOCUMENTATION = '''
 ---
 module: keystone_user
 version_added: "1.2"
-deprecated: Deprecated in 2.0. Use os_user instead
+deprecated: Deprecated in 2.0. Use M(os_user) instead.
 short_description: Manage OpenStack Identity (keystone) users, tenants and roles
 description:
    - Manage users,tenants, roles from OpenStack.
@@ -332,19 +332,19 @@ def main():
 
     argument_spec = openstack_argument_spec()
     argument_spec.update(dict(
-            tenant_description=dict(required=False),
-            email=dict(required=False),
-            user=dict(required=False),
-            tenant=dict(required=False),
-            password=dict(required=False),
-            role=dict(required=False),
-            state=dict(default='present', choices=['present', 'absent']),
-            endpoint=dict(required=False,
+        tenant_description=dict(required=False),
+        email=dict(required=False),
+        user=dict(required=False),
+        tenant=dict(required=False),
+        password=dict(required=False),
+        role=dict(required=False),
+        state=dict(default='present', choices=['present', 'absent']),
+        endpoint=dict(required=False,
                           default="http://127.0.0.1:35357/v2.0"),
-            token=dict(required=False),
-            login_user=dict(required=False),
-            login_password=dict(required=False),
-            login_tenant_name=dict(required=False)
+        token=dict(required=False),
+        login_user=dict(required=False),
+        login_password=dict(required=False, no_log=True),
+        login_tenant_name=dict(required=False)
     ))
     # keystone operations themselves take an endpoint, not a keystone auth_url
     del(argument_spec['auth_url'])

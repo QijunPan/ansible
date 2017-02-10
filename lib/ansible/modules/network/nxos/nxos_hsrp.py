@@ -155,12 +155,12 @@ from ansible.module_utils.network import NetworkModule
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -574,8 +574,8 @@ def is_default(interface, module):
 def validate_config(body, vip, module):
     new_body = ''.join(body)
     if "invalid ip address" in new_body.lower():
-            module.fail_json(msg="Invalid VIP. Possible duplicate IP address.",
-                             vip=vip)
+        module.fail_json(msg="Invalid VIP. Possible duplicate IP address.",
+                         vip=vip)
 
 
 def validate_params(param, module):
@@ -604,20 +604,20 @@ def validate_params(param, module):
 
 def main():
     argument_spec = dict(
-            group=dict(required=True, type='str'),
-            interface=dict(required=True),
-            version=dict(choices=['1', '2'], default='2', required=False),
-            priority=dict(type='str', required=False),
-            preempt=dict(type='str', choices=['disabled', 'enabled'],
+        group=dict(required=True, type='str'),
+        interface=dict(required=True),
+        version=dict(choices=['1', '2'], default='2', required=False),
+        priority=dict(type='str', required=False),
+        preempt=dict(type='str', choices=['disabled', 'enabled'],
                          required=False),
-            vip=dict(type='str', required=False),
-            auth_type=dict(choices=['text', 'md5'], required=False),
-            auth_string=dict(type='str', required=False),
-            state=dict(choices=['absent', 'present'], required=False,
+        vip=dict(type='str', required=False),
+        auth_type=dict(choices=['text', 'md5'], required=False),
+        auth_string=dict(type='str', required=False),
+        state=dict(choices=['absent', 'present'], required=False,
                        default='present'),
-            include_defaults=dict(default=True),
-            config=dict(),
-            save=dict(type='bool', default=False)
+        include_defaults=dict(default=True),
+        config=dict(),
+        save=dict(type='bool', default=False)
     )
     module = get_network_module(argument_spec=argument_spec,
                             supports_check_mode=True)
@@ -685,7 +685,7 @@ def main():
     commands = []
     if state == 'present':
         delta = dict(
-                    set(proposed.items()).difference(existing.items()))
+            set(proposed.items()).difference(existing.items()))
         if delta:
             command = get_commands_config_hsrp(delta, interface, args)
             commands.extend(command)

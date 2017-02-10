@@ -109,7 +109,7 @@ EXAMPLES = '''
     name: topicExchange
     destination: topicExchange
     type: exchange
-    routing_key: *.info
+    routing_key: '*.info'
 '''
 
 import requests
@@ -196,14 +196,14 @@ def main():
             )
 
             r = requests.post(
-                    url,
-                    auth = (module.params['login_user'],module.params['login_password']),
-                    headers = { "content-type": "application/json"},
-                    data = json.dumps({
-                        "routing_key": module.params['routing_key'],
-                        "arguments": module.params['arguments']
+                url,
+                auth = (module.params['login_user'],module.params['login_password']),
+                headers = { "content-type": "application/json"},
+                data = json.dumps({
+                    "routing_key": module.params['routing_key'],
+                    "arguments": module.params['arguments']
                     })
-                )
+            )
         elif module.params['state'] == 'absent':
             r = requests.delete( url, auth = (module.params['login_user'],module.params['login_password']))
 

@@ -16,9 +16,11 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-ANSIBLE_METADATA = {'status': ['preview'],
-                    'supported_by': 'core',
-                    'version': '1.0'}
+ANSIBLE_METADATA = {
+    'status': ['preview'],
+    'supported_by': 'core',
+    'version': '1.0'
+}
 
 DOCUMENTATION = """
 ---
@@ -85,33 +87,21 @@ options:
 """
 
 EXAMPLES = """
-# Note: examples below use the following provider dict to handle
-#       transport and authentication to the node.
-vars:
-  cli:
-    host: "{{ inventory_hostname }}"
-    username: cisco
-    password: cisco
-    transport: cli
-
 tasks:
   - name: run show version on remote devices
     ios_command:
       commands: show version
-      provider: "{{ cli }}"
 
   - name: run show version and check to see if output contains IOS
     ios_command:
       commands: show version
       wait_for: result[0] contains IOS
-      provider: "{{ cli }}"
 
   - name: run multiple commands on remote nodes
-     ios_command:
+    ios_command:
       commands:
         - show version
         - show interfaces
-      provider: "{{ cli }}"
 
   - name: run multiple commands and evaluate the output
     ios_command:
@@ -121,7 +111,6 @@ tasks:
       wait_for:
         - result[0] contains IOS
         - result[1] contains Loopback0
-      provider: "{{ cli }}"
 """
 
 RETURN = """
@@ -130,27 +119,61 @@ stdout:
   returned: always
   type: list
   sample: ['...', '...']
-
 stdout_lines:
   description: The value of stdout split into a list
   returned: always
   type: list
   sample: [['...', '...'], ['...'], ['...']]
-
 failed_conditions:
   description: The list of conditionals that have failed
   returned: failed
   type: list
   sample: ['...', '...']
+start:
+  description: The time the job started
+  returned: always
+  type: str
+  sample: "2016-11-16 10:38:15.126146"
+end:
+  description: The time the job ended
+  returned: always
+  type: str
+  sample: "2016-11-16 10:38:25.595612"
+delta:
+  description: The time elapsed to perform all operations
+  returned: always
+  type: str
+  sample: "0:00:10.469466"
 """
-import ansible.module_utils.ios
-from ansible.module_utils.basic import get_exception
-from ansible.module_utils.netcli import CommandRunner
-from ansible.module_utils.netcli import AddCommandError, FailedConditionsError
-from ansible.module_utils.network import NetworkModule, NetworkError
+import time
+
+from functools import partial
+
+from ansible.module_utils import ios
+from ansible.module_utils import ios_cli
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.local import LocalAnsibleModule
+from ansible.module_utils.network_common import ComplexList
+from ansible.module_utils.netcli import Conditional
 from ansible.module_utils.six import string_types
 
-VALID_KEYS = ['command', 'prompt', 'response']
+SHARED_LIB = 'ios'
+
+def get_ansible_module():
+    if SHARED_LIB == 'ios':
+        return LocalAnsibleModule
+    return AnsibleModule
+
+def invoke(name, *args, **kwargs):
+    obj = globals().get(SHARED_LIB)
+    func = getattr(obj, name)
+    return func(*args, **kwargs)
+
+run_commands = partial(invoke, 'run_commands')
+
+def check_args(module, warnings):
+    if SHARED_LIB == 'ios_cli':
+        ios_cli.check_args(module)
 
 def to_lines(stdout):
     for item in stdout:
@@ -158,18 +181,30 @@ def to_lines(stdout):
             item = str(item).split('\n')
         yield item
 
-def parse_commands(module):
-    for cmd in module.params['commands']:
-        if isinstance(cmd, string_types):
-            cmd = dict(command=cmd, output=None)
-        elif 'command' not in cmd:
-            module.fail_json(msg='command keyword argument is required')
-        elif not set(cmd.keys()).issubset(VALID_KEYS):
-            module.fail_json(msg='unknown keyword specified')
-        yield cmd
+def parse_commands(module, warnings):
+    command = ComplexList(dict(
+        command=dict(key=True),
+        prompt=dict(),
+        response=dict()
+    ))
+    commands = command(module.params['commands'])
+    for index, item in enumerate(commands):
+        if module.check_mode and not item['command'].startswith('show'):
+            warnings.append(
+                'only show commands are supported when using check mode, not '
+                'executing `%s`' % item['command']
+            )
+        elif item['command'].startswith('conf'):
+            module.fail_json(
+                msg='ios_command does not support running config mode '
+                    'commands.  Please use ios_config instead'
+            )
+    return commands
 
 def main():
-    spec = dict(
+    """main entry point for module execution
+    """
+    argument_spec = dict(
         # { command: <str>, prompt: <str>, response: <str> }
         commands=dict(type='list', required=True),
 
@@ -180,62 +215,57 @@ def main():
         interval=dict(default=1, type='int')
     )
 
-    module = NetworkModule(argument_spec=spec,
-                           connect_on_load=False,
-                           supports_check_mode=True)
+    argument_spec.update(ios_cli.ios_cli_argument_spec)
 
-    commands = list(parse_commands(module))
-    conditionals = module.params['wait_for'] or list()
+    cls = get_ansible_module()
+    module = cls(argument_spec=argument_spec, supports_check_mode=True)
 
     warnings = list()
+    check_args(module, warnings)
 
-    runner = CommandRunner(module)
+    result = {'changed': False}
 
-    for cmd in commands:
-        if module.check_mode and not cmd['command'].startswith('show'):
-            warnings.append('only show commands are supported when using '
-                            'check mode, not executing `%s`' % cmd['command'])
-        else:
-            if cmd['command'].startswith('conf'):
-                module.fail_json(msg='ios_command does not support running '
-                                     'config mode commands.  Please use '
-                                     'ios_config instead')
-            try:
-                runner.add_command(**cmd)
-            except AddCommandError:
-                exc = get_exception()
-                warnings.append('duplicate command detected: %s' % cmd)
+    commands = parse_commands(module, warnings)
 
-    for item in conditionals:
-        runner.add_conditional(item)
+    wait_for = module.params['wait_for'] or list()
+    conditionals = [Conditional(c) for c in wait_for]
 
-    runner.retries = module.params['retries']
-    runner.interval = module.params['interval']
-    runner.match = module.params['match']
+    retries = module.params['retries']
+    interval = module.params['interval']
+    match = module.params['match']
 
-    try:
-        runner.run()
-    except FailedConditionsError:
-        exc = get_exception()
-        module.fail_json(msg=str(exc), failed_conditions=exc.failed_conditions)
-    except NetworkError:
-        exc = get_exception()
-        module.fail_json(msg=str(exc))
+    while retries > 0:
+        responses = run_commands(module, commands)
 
-    result = dict(changed=False, stdout=list())
+        for item in list(conditionals):
+            if item(responses):
+                if match == 'any':
+                    conditionals = list()
+                    break
+                conditionals.remove(item)
 
-    for cmd in commands:
-        try:
-            output = runner.get_command(cmd['command'])
-        except ValueError:
-            output = 'command not executed due to check_mode, see warnings'
-        result['stdout'].append(output)
+        if not conditionals:
+            break
 
-    result['warnings'] = warnings
-    result['stdout_lines'] = list(to_lines(result['stdout']))
+        time.sleep(interval)
+        retries -= 1
+
+    if conditionals:
+        failed_conditions = [item.raw for item in conditionals]
+        msg = 'One or more conditional statements have not be satisfied'
+        module.fail_json(msg=msg, failed_conditions=failed_conditions)
+
+
+    result = {
+        'changed': False,
+        'stdout': responses,
+        'warnings': warnings,
+        'stdout_lines': list(to_lines(responses))
+    }
 
     module.exit_json(**result)
 
 
 if __name__ == '__main__':
+    SHARED_LIB = 'ios_cli'
     main()

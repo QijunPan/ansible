@@ -112,7 +112,7 @@ EXAMPLES = '''
 
 import os
 import xml.etree.ElementTree as ET
-import urlparse
+import ansible.module_utils.six.moves.urllib.parse as urlparse
 
 from ansible.module_utils.basic import *
 from ansible.module_utils.ec2 import *
@@ -213,7 +213,7 @@ def _create_or_update_bucket(connection, module, location):
             # only show changed if there was already a policy
             changed = bool(current_policy)
 
-        elif current_policy != policy:
+        elif sort_json_policy_dict(current_policy) != sort_json_policy_dict(policy):
             try:
                 bucket.set_policy(json.dumps(policy))
                 changed = True

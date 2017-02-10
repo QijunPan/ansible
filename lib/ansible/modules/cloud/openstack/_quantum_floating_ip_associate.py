@@ -16,18 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
-try:
-    from novaclient.v1_1 import client as nova_client
-    try:
-        from neutronclient.neutron import client
-    except ImportError:
-        from quantumclient.quantum import client
-    from keystoneclient.v2_0 import client as ksclient
-    HAVE_DEPS = True
-except ImportError:
-    HAVE_DEPS = False
-
 ANSIBLE_METADATA = {'status': ['deprecated'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -37,7 +25,7 @@ DOCUMENTATION = '''
 module: quantum_floating_ip_associate
 version_added: "1.2"
 author: "Benno Joy (@bennojoy)"
-deprecated: Deprecated in 2.0. Use os_floating_ip instead
+deprecated: Deprecated in 2.0. Use M(os_floating_ip) instead.
 short_description: Associate or disassociate a particular floating IP with an instance
 description:
    - Associates or disassociates a specific floating IP with a particular instance
@@ -100,6 +88,19 @@ EXAMPLES = '''
     instance_name: vm1
 '''
 
+import time
+try:
+    from novaclient.v1_1 import client as nova_client
+    try:
+        from neutronclient.neutron import client
+    except ImportError:
+        from quantumclient.quantum import client
+    from keystoneclient.v2_0 import client as ksclient
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
+
+
 def _get_ksclient(module, kwargs):
     try:
         kclient = ksclient.Client(username=kwargs.get('login_username'),
@@ -125,8 +126,8 @@ def _get_neutron_client(module, kwargs):
     token = _ksclient.auth_token
     endpoint = _get_endpoint(module, _ksclient)
     kwargs = {
-            'token': token,
-            'endpoint_url': endpoint
+        'token': token,
+        'endpoint_url': endpoint
     }
     try:
         neutron = client.Client('2.0', **kwargs)
@@ -147,7 +148,7 @@ def _get_server_state(module, nova):
                     server_info = info
                     break
     except Exception as e:
-            module.fail_json(msg = "Error in getting the server list: %s" % e.message)
+        module.fail_json(msg = "Error in getting the server list: %s" % e.message)
     return server_info, server
 
 def _get_port_id(neutron, module, instance_id):
@@ -191,9 +192,9 @@ def main():
 
     argument_spec = openstack_argument_spec()
     argument_spec.update(dict(
-            ip_address                      = dict(required=True),
-            instance_name                   = dict(required=True),
-            state                           = dict(default='present', choices=['absent', 'present'])
+        ip_address                      = dict(required=True),
+        instance_name                   = dict(required=True),
+        state                           = dict(default='present', choices=['absent', 'present'])
     ))
     module = AnsibleModule(argument_spec=argument_spec)
 

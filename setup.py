@@ -18,13 +18,13 @@ setup(name='ansible',
       author_email='info@ansible.com',
       url='http://ansible.com/',
       license='GPLv3',
-      # Ansible will also make use of a system copy of python-six if installed but use a
-      # Bundled copy if it's not.
+      # Ansible will also make use of a system copy of python-six and
+      # python-selectors2 if installed but use a Bundled copy if it's not.
       install_requires=['paramiko', 'jinja2', "PyYAML", 'setuptools', 'pycrypto >= 2.6'],
       package_dir={ '': 'lib' },
       packages=find_packages('lib'),
       package_data={
-         '': ['module_utils/*.ps1', 'modules/windows/*.ps1', 'modules/windows/*.ps1', 'galaxy/data/*/*.*', 'galaxy/data/*/*/*.*', 'galaxy/data/*/tests/inventory'],
+          '': ['module_utils/*.ps1', 'modules/windows/*.ps1', 'modules/windows/*.ps1', 'galaxy/data/*/*.*', 'galaxy/data/*/*/*.*', 'galaxy/data/*/tests/inventory'],
       },
       classifiers=[
           'Development Status :: 5 - Production/Stable',
@@ -42,14 +42,14 @@ setup(name='ansible',
           'Topic :: Utilities',
       ],
       scripts=[
-         'bin/ansible',
-         'bin/ansible-playbook',
-         'bin/ansible-pull',
-         'bin/ansible-doc',
-         'bin/ansible-galaxy',
-         'bin/ansible-console',
-         'bin/ansible-connection',
-         'bin/ansible-vault',
+          'bin/ansible',
+          'bin/ansible-playbook',
+          'bin/ansible-pull',
+          'bin/ansible-doc',
+          'bin/ansible-galaxy',
+          'bin/ansible-console',
+          'bin/ansible-connection',
+          'bin/ansible-vault',
       ],
       data_files=[],
 )

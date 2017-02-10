@@ -16,13 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    import shade
-    HAS_SHADE = True
-except ImportError:
-    HAS_SHADE = False
-
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -161,6 +154,13 @@ EXAMPLES = '''
     ipv6_address_mode: dhcpv6-stateless
 '''
 
+try:
+    import shade
+    HAS_SHADE = True
+except ImportError:
+    HAS_SHADE = False
+
+
 def _can_update(subnet, module, cloud):
     """Check for differences in non-updatable values"""
     network_name = module.params['network_name']
@@ -176,7 +176,7 @@ def _can_update(subnet, module, cloud):
         else:
             module.fail_json(msg='No network found for %s' % network_name)
         if netid != subnet['network_id']:
-                module.fail_json(msg='Cannot update network_name in existing \
+            module.fail_json(msg='Cannot update network_name in existing \
                                       subnet')
     if ip_version and subnet['ip_version'] != ip_version:
         module.fail_json(msg='Cannot update ip_version in existing subnet')

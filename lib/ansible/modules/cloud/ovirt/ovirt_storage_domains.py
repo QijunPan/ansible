@@ -19,27 +19,6 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-try:
-    import ovirtsdk4.types as otypes
-
-    from ovirtsdk4.types import StorageDomainStatus as sdstate
-except ImportError:
-    pass
-
-import traceback
-
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ovirt import (
-    BaseModule,
-    check_sdk,
-    create_connection,
-    equal,
-    ovirt_full_argument_spec,
-    search_by_name,
-    wait,
-)
-
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -99,6 +78,7 @@ options:
             - "C(lun_id) - LUN id."
             - "C(username) - A CHAP user name for logging into a target."
             - "C(password) - A CHAP password for logging into a target."
+            - "C(override_luns) - If I(True) ISCSI storage domain luns will be overriden before adding."
             - "Note that these parameters are not idempotent."
     posixfs:
         description:
@@ -110,7 +90,7 @@ options:
     glusterfs:
         description:
             - "Dictionary with values for GlusterFS storage type:"
-            - "C(address) - Address of the NFS server. E.g.: myserver.mydomain.com"
+            - "C(address) - Address of the Gluster server. E.g.: myserver.mydomain.com"
             - "C(path) - Path of the mount point. E.g.: /path/to/my/data"
             - "C(mount_options) - Option which will be passed when mounting storage."
             - "Note that these parameters are not idempotent."
@@ -155,6 +135,15 @@ EXAMPLES = '''
       lun_id: 1IET_000d0002
       address: 10.34.63.204
 
+# Add data glusterfs storage domain
+-  ovirt_storage_domains:
+    name: glusterfs_1
+    host: myhost
+    data_center: mydatacenter
+    glusterfs:
+      address: 10.10.10.10
+      path: /path/data
+
 # Import export NFS storage domain:
 - ovirt_storage_domains:
     domain_function: export
@@ -187,11 +176,32 @@ id:
     returned: On success if storage domain is found.
     type: str
     sample: 7de90f31-222c-436c-a1ca-7e655bd5b60c
-storage domain:
+storage_domain:
     description: "Dictionary of all the storage domain attributes. Storage domain attributes can be found on your oVirt instance
                   at following url: https://ovirt.example.com/ovirt-engine/api/model#types/storage_domain."
     returned: On success if storage domain is found.
 '''
+
+try:
+    import ovirtsdk4.types as otypes
+
+    from ovirtsdk4.types import StorageDomainStatus as sdstate
+except ImportError:
+    pass
+
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ovirt import (
+    BaseModule,
+    check_sdk,
+    create_connection,
+    equal,
+    get_entity,
+    ovirt_full_argument_spec,
+    search_by_name,
+    wait,
+)
 
 
 class StorageDomainModule(BaseModule):
@@ -246,8 +256,9 @@ class StorageDomainModule(BaseModule):
                         password=storage.get('password'),
                     ),
                 ] if storage_type in ['iscsi', 'fcp'] else None,
+                override_luns=storage.get('override_luns'),
                 mount_options=storage.get('mount_options'),
-                vfs_type=storage.get('vfs_type'),
+                vfs_type='glusterfs' if storage_type in ['glusterfs'] else storage.get('vfs_type'),
                 address=storage.get('address'),
                 path=storage.get('path'),
                 nfs_retrans=storage.get('retrans'),
@@ -274,7 +285,7 @@ class StorageDomainModule(BaseModule):
             return
 
         attached_sd_service = attached_sds_service.storage_domain_service(storage_domain.id)
-        attached_sd = attached_sd_service.get()
+        attached_sd = get_entity(attached_sd_service)
 
         if attached_sd and attached_sd.status != sdstate.MAINTENANCE:
             if not self._module.check_mode:
@@ -294,7 +305,7 @@ class StorageDomainModule(BaseModule):
             return
 
         attached_sd_service = attached_sds_service.storage_domain_service(storage_domain.id)
-        attached_sd = attached_sd_service.get()
+        attached_sd = get_entity(attached_sd_service)
 
         if attached_sd and attached_sd.status == sdstate.MAINTENANCE:
             if not self._module.check_mode:
@@ -322,7 +333,7 @@ class StorageDomainModule(BaseModule):
 
         # If storage domain isn't attached, attach it:
         attached_sd_service = self._service.service(storage_domain.id)
-        if attached_sd_service.get() is None:
+        if get_entity(attached_sd_service) is None:
             self._service.add(
                 otypes.StorageDomain(
                     id=storage_domain.id,

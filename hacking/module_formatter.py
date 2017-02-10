@@ -38,7 +38,6 @@ from six import iteritems
 from ansible.errors import AnsibleError
 from ansible.module_utils._text import to_bytes
 from ansible.utils import module_docs
-from ansible.utils.vars import merge_hash
 
 #####################################################################################
 # constants and paths
@@ -136,7 +135,12 @@ def list_modules(module_dir, depth=0):
     # * windows powershell modules have documentation stubs in python docstring
     #   format (they are not executed) so skip the ps1 format files
     # * One glob level for every module level that we're going to traverse
-    files = glob.glob("%s/*.py" % module_dir) + glob.glob("%s/*/*.py" % module_dir) + glob.glob("%s/*/*/*.py" % module_dir) + glob.glob("%s/*/*/*/*.py" % module_dir)
+    files = (
+        glob.glob("%s/*.py" % module_dir) +
+        glob.glob("%s/*/*.py" % module_dir) +
+        glob.glob("%s/*/*/*.py" % module_dir) +
+        glob.glob("%s/*/*/*/*.py" % module_dir)
+    )
 
     for module_path in files:
         if module_path.endswith('__init__.py'):
@@ -254,16 +258,13 @@ def process_module(module, options, env, template, outputname, module_map, alias
 
     # crash if module is missing documentation and not explicitly hidden from docs index
     if doc is None:
-        sys.stderr.write("*** ERROR: MODULE MISSING DOCUMENTATION: %s, %s ***\n" % (fname, module))
-        sys.exit(1)
+        sys.exit("*** ERROR: MODULE MISSING DOCUMENTATION: %s, %s ***\n" % (fname, module))
 
     if metadata is None:
-        sys.stderr.write("*** ERROR: MODULE MISSING METADATA: %s, %s ***\n" % (fname, module))
-        sys.exit(1)
+        sys.exit("*** ERROR: MODULE MISSING METADATA: %s, %s ***\n" % (fname, module))
 
     if deprecated and 'deprecated' not in doc:
-        sys.stderr.write("*** ERROR: DEPRECATED MODULE MISSING 'deprecated' DOCUMENTATION: %s, %s ***\n" % (fname, module))
-        sys.exit(1)
+        sys.exit("*** ERROR: DEPRECATED MODULE MISSING 'deprecated' DOCUMENTATION: %s, %s ***\n" % (fname, module))
 
     if module in aliases:
         doc['aliases'] = aliases[module]
@@ -271,8 +272,7 @@ def process_module(module, options, env, template, outputname, module_map, alias
     all_keys = []
 
     if not 'version_added' in doc:
-        sys.stderr.write("*** ERROR: missing version_added in: %s ***\n" % module)
-        sys.exit(1)
+        sys.exit("*** ERROR: missing version_added in: %s ***\n" % module)
 
     added = 0
     if doc['version_added'] == 'historical':
@@ -417,7 +417,8 @@ def process_category(category, categories, options, env, template, outputname):
 
     category_file.write("""\n\n
 .. note::
-    - %s: This marks a module as deprecated, which means a module is kept for backwards compatibility but usage is discouraged.  The module documentation details page may explain more about this rationale.
+    - %s: This marks a module as deprecated, which means a module is kept for backwards compatibility but usage is discouraged.
+       The module documentation details page may explain more about this rationale.
 """ % DEPRECATED)
     category_file.close()
 
@@ -429,14 +430,11 @@ def validate_options(options):
     ''' validate option parser options '''
 
     if not options.module_dir:
-        print("--module-dir is required", file=sys.stderr)
-        sys.exit(1)
+        sys.exit("--module-dir is required", file=sys.stderr)
     if not os.path.exists(options.module_dir):
-        print("--module-dir does not exist: %s" % options.module_dir, file=sys.stderr)
-        sys.exit(1)
+        sys.exit("--module-dir does not exist: %s" % options.module_dir, file=sys.stderr)
     if not options.template_dir:
-        print("--template-dir must be specified")
-        sys.exit(1)
+        sys.exit("--template-dir must be specified")
 
 #####################################################################################
 
@@ -471,7 +469,6 @@ def main():
     # Import all the docs into memory
     #
     module_map = mod_info.copy()
-    skipped_modules = set()
 
     for modname in module_map:
         result = process_module(modname, options, env, template, outputname, module_map, aliases)

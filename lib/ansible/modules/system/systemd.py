@@ -68,6 +68,14 @@ options:
         description:
             - run systemctl talking to the service manager of the calling user, rather than the service manager
               of the system.
+    no_block:
+        required: false
+        default: no
+        choices: [ "yes", "no" ]
+        description:
+            - Do not synchronously wait for the requested operation to finish.
+              Enqueued job will continue without Ansible blocking on its completion.
+        version_added: "2.3"
 notes:
     - One option other than name is required.
 requirements:
@@ -251,20 +259,23 @@ def main():
     # initialize
     module = AnsibleModule(
         argument_spec = dict(
-                name = dict(required=True, type='str', aliases=['unit', 'service']),
-                state = dict(choices=[ 'started', 'stopped', 'restarted', 'reloaded'], type='str'),
-                enabled = dict(type='bool'),
-                masked = dict(type='bool'),
-                daemon_reload= dict(type='bool', default=False, aliases=['daemon-reload']),
-                user= dict(type='bool', default=False),
-            ),
-            supports_check_mode=True,
-            required_one_of=[['state', 'enabled', 'masked', 'daemon_reload']],
+            name = dict(required=True, type='str', aliases=['unit', 'service']),
+            state = dict(choices=[ 'started', 'stopped', 'restarted', 'reloaded'], type='str'),
+            enabled = dict(type='bool'),
+            masked = dict(type='bool'),
+            daemon_reload = dict(type='bool', default=False, aliases=['daemon-reload']),
+            user = dict(type='bool', default=False),
+            no_block = dict(type='bool', default=False),
+        ),
+        supports_check_mode=True,
+        required_one_of=[['state', 'enabled', 'masked', 'daemon_reload']],
         )
 
-    systemctl = module.get_bin_path('systemctl')
+    systemctl = module.get_bin_path('systemctl', True)
     if module.params['user']:
         systemctl = systemctl + " --user"
+    if module.params['no_block']:
+        systemctl = systemctl + " --no-block"
     unit = module.params['name']
     rc = 0
     out = err = ''
@@ -272,7 +283,6 @@ def main():
         'name':  unit,
         'changed': False,
         'status': {},
-        'warnings': [],
     }
 
     # Run daemon-reload first, if requested
@@ -320,7 +330,7 @@ def main():
     # Does service exist?
     found = is_systemd or is_initd
     if is_initd and not is_systemd:
-        result['warnings'].append('The service (%s) is actually an init script but the system is managed by systemd' % unit)
+        module.warn('The service (%s) is actually an init script but the system is managed by systemd' % unit)
 
     # mask/unmask the service, if requested, can operate on services before they are installed
     if module.params['masked'] is not None:
@@ -359,8 +369,11 @@ def main():
         if rc == 0:
             enabled = True
         elif rc == 1:
-            # if both init script and unit file exist stdout should have enabled/disabled, otherwise use rc entries
-            if is_initd and (not out.startswith('disabled') or sysv_is_enabled(unit)):
+            # if not a user service and both init script and unit file exist stdout should have enabled/disabled, otherwise use rc entries
+            if not module.params['user'] and \
+               is_initd and \
+               (not out.strip().endswith('disabled') or sysv_is_enabled(unit)):
+
                 enabled = True
 
         # default to current state

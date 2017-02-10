@@ -19,13 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>
 
-
-import os
-import stat
-import fnmatch
-import time
-import re
-
 ANSIBLE_METADATA = {'status': ['stableinterface'],
                     'supported_by': 'core',
                     'version': '1.0'}
@@ -121,7 +114,7 @@ options:
 '''
 
 
-EXAMPLES = '''
+EXAMPLES = r'''
 # Recursively find /tmp files older than 2 days
 - find:
     paths: "/tmp"
@@ -149,9 +142,11 @@ EXAMPLES = '''
     size: "10m"
 
 # find /var/log files equal or greater than 10 megabytes ending with .old or .log.gz via regex
+# Note that yaml double quotes require escaping backslashes but yaml single
+# quotes do not.
 - find:
     paths: "/var/tmp"
-    patterns: "^.*?\.(?:old|log\.gz)$"
+    patterns: "^.*?\\.(?:old|log\\.gz)$"
     size: "10m"
     use_regex: True
 '''
@@ -182,6 +177,13 @@ examined:
     type: string
     sample: 34
 '''
+
+import os
+import stat
+import fnmatch
+import time
+import re
+
 
 def pfilter(f, patterns=None, use_regex=False):
     '''filter using glob patterns'''
@@ -225,19 +227,20 @@ def sizefilter(st, size):
 
 def contentfilter(fsname, pattern):
     '''filter files which contain the given expression'''
-    if pattern is None: return True
+    if pattern is None:
+        return True
 
     try:
-       f = open(fsname)
-       prog = re.compile(pattern)
-       for line in f:
-           if prog.match (line):
-               f.close()
-               return True
+        f = open(fsname)
+        prog = re.compile(pattern)
+        for line in f:
+            if prog.match (line):
+                f.close()
+                return True
 
-       f.close() 
+        f.close()
     except:
-       pass
+        pass
 
     return False
 
@@ -323,6 +326,7 @@ def main():
     msg = ''
     looked = 0
     for npath in params['paths']:
+        npath = os.path.expanduser(os.path.expandvars(npath))
         if os.path.isdir(npath):
 
             ''' ignore followlinks for python version < 2.6 '''
@@ -333,7 +337,7 @@ def main():
                     fsname=os.path.normpath(os.path.join(root, fsobj))
 
                     if os.path.basename(fsname).startswith('.') and not params['hidden']:
-                       continue
+                        continue
 
                     try:
                         st = os.lstat(fsname)

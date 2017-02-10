@@ -29,10 +29,10 @@ class ActionModule(ActionBase):
 
     def run(self, tmp=None, task_vars=None):
         result = super(ActionModule, self).run(tmp, task_vars)
-        del result['invocation']['module_args']
+        if result.get('invocation', {}).get('module_args'):
+            del result['invocation']['module_args']
 
-        module_name = self._task.action
-        self._update_module_args(module_name, self._task.args, task_vars)
+        self._update_module_args(self._task.action, self._task.args, task_vars)
 
         try:
             _modify_module(self._task.args, self._connection)
@@ -46,7 +46,7 @@ class ActionModule(ActionBase):
             result.update(exc.result)
             for field in ('_ansible_notify',):
                 if field in result:
-                    results.pop(field)
+                    result.pop(field)
 
         except Exception as exc:
             if display.verbosity > 2:

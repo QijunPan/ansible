@@ -139,13 +139,13 @@ class CloudTrailManager:
         ret = self.conn.describe_trails(trail_name_list=[name])
         trailList = ret.get('trailList', [])
         if len(trailList) == 1:
-          return trailList[0]
+            return trailList[0]
         return None
 
     def exists(self, name=None):
         ret = self.view(name)
         if ret:
-          return True
+            return True
         return False
 
     def enable_logging(self, name):
@@ -180,7 +180,7 @@ def main():
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True, required_together=required_together)
 
     if not HAS_BOTO:
-      module.fail_json(msg='boto is required.')
+        module.fail_json(msg='boto is required.')
 
     ec2_url, access_key, secret_key, region = get_ec2_creds(module)
     aws_connect_params = dict(aws_access_key_id=access_key,
@@ -208,7 +208,7 @@ def main():
             results['view'] = cf_man.view(ct_name)
             # only update if the values have changed.
             if results['view']['S3BucketName']              != s3_bucket_name or \
-              results['view'].get('S3KeyPrefix', '')      != s3_key_prefix  or \
+              results['view'].get('S3KeyPrefix', '')      != s3_key_prefix or \
               results['view']['IncludeGlobalServiceEvents'] != include_global_events:
                 if not module.check_mode:
                     results['update'] = cf_man.update(name=ct_name, s3_bucket_name=s3_bucket_name, s3_key_prefix=s3_key_prefix, include_global_service_events=include_global_events)

@@ -146,46 +146,43 @@ EXAMPLES = '''
 # Note: None of these examples set subscription_id or management_cert_path
 # It is assumed that their matching environment variables are set.
 
-# Provision virtual machine example
-- local_action:
-    module: azure
+- name: Provision virtual machine example
+  azure:
     name: my-virtual-machine
     role_size: Small
     image: b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu_DAILY_BUILD-precise-12_04_3-LTS-amd64-server-20131205-en-us-30GB
-    location: 'East US'
+    location: East US
     user: ubuntu
     ssh_cert_path: /path/to/azure_x509_cert.pem
     storage_account: my-storage-account
-    wait: yes
+    wait: True
+    state: present
+  delegate_to: localhost
 
-# Terminate virtual machine example
-- local_action:
-    module: azure
+- name: Terminate virtual machine example
+  azure:
     name: my-virtual-machine
     state: absent
+  delegate_to: localhost
 
-#Create windows machine
-- hosts: all
-  connection: local
-  tasks:
-   - local_action:
-      module: azure
-      name: "ben-Winows-23"
-      hostname: "win123"
-      os_type: windows
-      enable_winrm: yes
-      subscription_id: "{{ azure_sub_id }}"
-      management_cert_path: "{{ azure_cert_path }}"
-      role_size: Small
-      image: 'bd507d3a70934695bc2128e3e5a255ba__RightImage-Windows-2012-x64-v13.5'
-      location: 'East Asia'
-      password: "xxx"
-      storage_account: benooytes
-      user: admin
-      wait: yes
-      virtual_network_name: "{{ vnet_name }}"
-
-
+- name: Create windows machine
+  azure:
+    name: ben-Winows-23
+    hostname: win123
+    os_type: windows
+    enable_winrm: True
+    subscription_id: '{{ azure_sub_id }}'
+    management_cert_path: '{{ azure_cert_path }}'
+    role_size: Small
+    image: bd507d3a70934695bc2128e3e5a255ba__RightImage-Windows-2012-x64-v13.5
+    location: East Asia
+    password: xxx
+    storage_account: benooytes
+    user: admin
+    wait: True
+    state: present
+    virtual_network_name: '{{ vnet_name }}'
+  delegate_to: localhost
 '''
 
 import base64
@@ -261,11 +258,11 @@ try:
     import azure as windows_azure
 
     if hasattr(windows_azure, '__version__') and LooseVersion(windows_azure.__version__) <= "0.11.1":
-      from azure import WindowsAzureError as AzureException
-      from azure import WindowsAzureMissingResourceError as AzureMissingException
+        from azure import WindowsAzureError as AzureException
+        from azure import WindowsAzureMissingResourceError as AzureMissingException
     else:
-      from azure.common import AzureException as AzureException
-      from azure.common import AzureMissingResourceHttpError as AzureMissingException
+        from azure.common import AzureException as AzureException
+        from azure.common import AzureMissingResourceHttpError as AzureMissingException
 
     from azure.servicemanagement import (ServiceManagementService, OSVirtualHardDisk, SSH, PublicKeys,
                                          PublicKey, LinuxConfigurationSet, ConfigurationSetInputEndpoints,
@@ -279,7 +276,8 @@ from types import MethodType
 import json
 
 def _wait_for_completion(azure, promise, wait_timeout, msg):
-    if not promise: return
+    if not promise:
+        return
     wait_timeout = time.time() + wait_timeout
     while wait_timeout > time.time():
         operation_result = azure.get_operation_status(promise.request_id)
@@ -368,7 +366,7 @@ def create_virtual_machine(module, azure):
         azure.get_role(name, name, name)
     except AzureMissingException:
         # vm does not exist; create it
-        
+
         if os_type == 'linux':
             # Create linux configuration
             disable_ssh_password_authentication = not password
@@ -566,7 +564,7 @@ def main():
     cloud_service_raw = None
     if module.params.get('state') == 'absent':
         (changed, public_dns_name, deployment) = terminate_virtual_machine(module, azure)
-    
+
     elif module.params.get('state') == 'present':
         # Changed is always set to true when provisioning new instances
         if not module.params.get('name'):

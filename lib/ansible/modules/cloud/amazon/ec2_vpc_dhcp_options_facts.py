@@ -131,7 +131,7 @@ def list_dhcp_options(client, module):
 
     snaked_dhcp_options_array = []
     for dhcp_option in all_dhcp_options_array:
-         snaked_dhcp_options_array.append(camel_dict_to_snake_dict(dhcp_option))
+        snaked_dhcp_options_array.append(camel_dict_to_snake_dict(dhcp_option))
 
     module.exit_json(dhcp_options=snaked_dhcp_options_array)
 
@@ -148,7 +148,7 @@ def main():
 
     module = AnsibleModule(argument_spec=argument_spec)
 
-     # Validate Requirements
+    # Validate Requirements
     if not HAS_BOTO3:
         module.fail_json(msg='json and botocore/boto3 is required.')
 

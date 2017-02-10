@@ -72,7 +72,7 @@ options:
   backup:
     version_added: "2.0"
     description:
-      - passes --backup --version-control=numbered to patch, 
+      - passes --backup --version-control=numbered to patch,
         producing numbered backup copies
     choices: [ 'yes', 'no' ]
     default: 'no'
@@ -91,15 +91,15 @@ note:
 
 EXAMPLES = '''
 - name: apply patch to one file
-  patch: >
-    src=/tmp/index.html.patch
-    dest=/var/www/index.html
+  patch:
+    src: /tmp/index.html.patch
+    dest: /var/www/index.html
 
 - name: apply patch to multiple files under basedir
-  patch: >
-    src=/tmp/customize.patch
-    basedir=/var/www
-    strip=1
+  patch:
+    src: /tmp/customize.patch
+    basedir: /var/www
+    strip: 1
 '''
 
 import os
@@ -182,7 +182,7 @@ def main():
 
     # patch need an absolute file name
     p.src = os.path.abspath(p.src)
-    
+
     changed = False
     if not is_already_applied(patch_func, p.src, p.basedir, dest_file=p.dest, binary=p.binary, strip=p.strip):
         try:

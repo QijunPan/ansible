@@ -35,26 +35,26 @@ BOOLEANS = BOOLEANS_TRUE + BOOLEANS_FALSE
 SIZE_RANGES = { 'Y': 1<<80, 'Z': 1<<70, 'E': 1<<60, 'P': 1<<50, 'T': 1<<40, 'G': 1<<30, 'M': 1<<20, 'K': 1<<10, 'B': 1 }
 
 FILE_ATTRIBUTES = {
-  'A': 'noatime',
-  'a': 'append',
-  'c': 'compressed',
-  'C': 'nocow',
-  'd': 'nodump',
-  'D': 'dirsync',
-  'e': 'extents',
-  'E': 'encrypted',
-  'h': 'blocksize',
-  'i': 'immutable',
-  'I': 'indexed',
-  'j': 'journalled',
-  'N': 'inline',
-  's': 'zero',
-  'S': 'synchronous',
-  't': 'notail',
-  'T': 'blockroot',
-  'u': 'undelete',
-  'X': 'compressedraw',
-  'Z': 'compresseddirty',
+    'A': 'noatime',
+    'a': 'append',
+    'c': 'compressed',
+    'C': 'nocow',
+    'd': 'nodump',
+    'D': 'dirsync',
+    'e': 'extents',
+    'E': 'encrypted',
+    'h': 'blocksize',
+    'i': 'immutable',
+    'I': 'indexed',
+    'j': 'journalled',
+    'N': 'inline',
+    's': 'zero',
+    'S': 'synchronous',
+    't': 'notail',
+    'T': 'blockroot',
+    'u': 'undelete',
+    'X': 'compressedraw',
+    'Z': 'compresseddirty',
 }
 
 # ansible modules can be written in any language.  To simplify
@@ -166,6 +166,8 @@ from ansible.module_utils.six import (PY2, PY3, b, binary_type, integer_types,
         iteritems, text_type, string_types)
 from ansible.module_utils.six.moves import map, reduce
 from ansible.module_utils._text import to_native, to_bytes, to_text
+
+PASSWORD_MATCH = re.compile(r'^(?:.+[-_\s])?pass(?:[-_\s]?(?:word|phrase|wrd|wd)?)(?:[-_\s].+)?$', re.I)
 
 _NUMBERTYPES = tuple(list(integer_types) + [float])
 
@@ -401,9 +403,9 @@ def remove_values(value, no_log_strings):
             native_str_value = native_str_value.replace(omit_me, '*' * 8)
 
         if value_is_text and isinstance(native_str_value, binary_type):
-            value = to_text(native_str_value, encoding='utf-8', errors='surrogate_or_replace')
+            value = to_text(native_str_value, encoding='utf-8', errors='surrogate_then_replace')
         elif not value_is_text and isinstance(native_str_value, text_type):
-            value = to_bytes(native_str_value, encoding='utf-8', errors='surrogate_or_replace')
+            value = to_bytes(native_str_value, encoding='utf-8', errors='surrogate_then_replace')
         else:
             value = native_str_value
     elif isinstance(value, SEQUENCETYPE):
@@ -680,13 +682,17 @@ class AnsibleModule(object):
         self.cleanup_files = []
         self._debug = False
         self._diff = False
+        self._socket_path = None
         self._verbosity = 0
         # May be used to set modifications to the environment for any
         # run_command invocation
         self.run_command_environ_update = {}
+        self._warnings = []
+        self._deprecations = []
+        self._passthrough = ['warnings', 'deprecations']
 
         self.aliases = {}
-        self._legal_inputs = ['_ansible_check_mode', '_ansible_no_log', '_ansible_debug', '_ansible_diff', '_ansible_verbosity', '_ansible_selinux_special_fs', '_ansible_module_name', '_ansible_version', '_ansible_syslog_facility']
+        self._legal_inputs = ['_ansible_check_mode', '_ansible_no_log', '_ansible_debug', '_ansible_diff', '_ansible_verbosity', '_ansible_selinux_special_fs', '_ansible_module_name', '_ansible_version', '_ansible_syslog_facility', '_ansible_socket']
 
         if add_file_common_args:
             for k, v in FILE_COMMON_ARGUMENTS.items():
@@ -715,6 +721,12 @@ class AnsibleModule(object):
                 if no_log_object:
                     self.no_log_values.update(return_values(no_log_object))
 
+            if arg_opts.get('removed_in_version') is not None and arg_name in self.params:
+                self._deprecations.append({
+                    'msg': "Param '%s' is deprecated. See the module docs for more information" % arg_name,
+                    'version': arg_opts.get('removed_in_version')
+                })
+
         # check the locale as set by the current environment, and reset to
         # a known valid (LANG=C) if it's an invalid/unavailable locale
         self._check_locale()
@@ -728,19 +740,19 @@ class AnsibleModule(object):
         self._set_defaults(pre=True)
 
         self._CHECK_ARGUMENT_TYPES_DISPATCHER = {
-                'str': self._check_type_str,
-                'list': self._check_type_list,
-                'dict': self._check_type_dict,
-                'bool': self._check_type_bool,
-                'int': self._check_type_int,
-                'float': self._check_type_float,
-                'path': self._check_type_path,
-                'raw': self._check_type_raw,
-                'jsonarg': self._check_type_jsonarg,
-                'json': self._check_type_jsonarg,
-                'bytes': self._check_type_bytes,
-                'bits': self._check_type_bits,
-            }
+            'str': self._check_type_str,
+            'list': self._check_type_list,
+            'dict': self._check_type_dict,
+            'bool': self._check_type_bool,
+            'int': self._check_type_int,
+            'float': self._check_type_float,
+            'path': self._check_type_path,
+            'raw': self._check_type_raw,
+            'jsonarg': self._check_type_jsonarg,
+            'json': self._check_type_jsonarg,
+            'bytes': self._check_type_bytes,
+            'bits': self._check_type_bits,
+        }
         if not bypass_checks:
             self._check_required_arguments()
             self._check_argument_types()
@@ -756,6 +768,24 @@ class AnsibleModule(object):
 
         # finally, make sure we're in a sane working dir
         self._set_cwd()
+
+    def warn(self, warning):
+
+        if isinstance(warning, string_types):
+            self._warnings.append(warning)
+            self.log('[WARNING] %s' % warning)
+        else:
+            raise TypeError("warn requires a string not a %s" % type(warning))
+
+    def deprecate(self, msg, version=None):
+        if isinstance(msg, string_types):
+            self._deprecations.append({
+                'msg': msg,
+                'version': version
+            })
+            self.log('[DEPRECATION WARNING] %s %s' % (msg, version))
+        else:
+            raise TypeError("deprecate requires a string not a %s" % type(msg))
 
     def load_file_common_arguments(self, params):
         '''
@@ -1169,9 +1199,12 @@ class AnsibleModule(object):
 
     def _apply_operation_to_mode(self, user, operator, mode_to_apply, current_mode):
         if operator  ==  '=':
-            if user == 'u': mask = stat.S_IRWXU | stat.S_ISUID
-            elif user == 'g': mask = stat.S_IRWXG | stat.S_ISGID
-            elif user == 'o': mask = stat.S_IRWXO | stat.S_ISVTX
+            if user == 'u':
+                mask = stat.S_IRWXU | stat.S_ISUID
+            elif user == 'g':
+                mask = stat.S_IRWXG | stat.S_ISGID
+            elif user == 'o':
+                mask = stat.S_IRWXO | stat.S_ISVTX
 
             # mask out u, g, or o permissions from current_mode and apply new permissions
             inverse_mask = mask ^ PERM_BITS
@@ -1384,6 +1417,9 @@ class AnsibleModule(object):
             elif k == '_ansible_module_name':
                 self._name = v
 
+            elif k == '_ansible_socket':
+                self._socket_path = v
+
             elif check_invalid_arguments and k not in self._legal_inputs:
                 unsupported_parameters.add(k)
 
@@ -1396,7 +1432,7 @@ class AnsibleModule(object):
                                                                                                                  ','.join(sorted(list(unsupported_parameters))),
                                                                                                                  ','.join(sorted(self.argument_spec.keys()))))
         if self.check_mode and not self.supports_check_mode:
-                self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
+            self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
 
     def _count_terms(self, check):
         count = 0
@@ -1445,14 +1481,26 @@ class AnsibleModule(object):
         ''' ensure that parameters which conditionally required are present '''
         if spec is None:
             return
-        for (key, val, requirements) in spec:
+        for sp in spec:
             missing = []
+            max_missing_count = 0
+            is_one_of = False
+            if len(sp) == 4:
+                key, val, requirements, is_one_of = sp
+            else:
+                key, val, requirements = sp
+
+            # is_one_of is True at least one requirement should be
+            # present, else all requirements should be present.
+            if is_one_of:
+                max_missing_count = len(requirements)
+
             if key in self.params and self.params[key] == val:
                 for check in requirements:
                     count = self._count_terms((check,))
                     if count == 0:
                         missing.append(check)
-            if len(missing) > 0:
+            if len(missing) and len(missing) >= max_missing_count:
                 self.fail_json(msg="%s is %s but the following are missing: %s" % (key, val, ','.join(missing)))
 
     def _check_argument_values(self):
@@ -1665,7 +1713,8 @@ class AnsibleModule(object):
             try:
                 self.params[k] = type_checker(value)
             except (TypeError, ValueError):
-                self.fail_json(msg="argument %s is of type %s and we were unable to convert to %s" % (k, type(value), wanted))
+                e = get_exception()
+                self.fail_json(msg="argument %s is of type %s and we were unable to convert to %s: %s" % (k, type(value), wanted, e))
 
     def _set_defaults(self, pre=True):
         for (k,v) in self.argument_spec.items():
@@ -1714,7 +1763,7 @@ class AnsibleModule(object):
 
     def debug(self, msg):
         if self._debug:
-            self.log(msg)
+            self.log('[debug] %s' % msg)
 
     def log(self, msg, log_args=None):
 
@@ -1761,17 +1810,19 @@ class AnsibleModule(object):
         # TODO: generalize a separate log function and make log_invocation use it
         # Sanitize possible password argument when logging.
         log_args = dict()
-        passwd_keys = ['password', 'login_password']
 
         for param in self.params:
             canon  = self.aliases.get(param, param)
             arg_opts = self.argument_spec.get(canon, {})
             no_log = arg_opts.get('no_log', False)
+            arg_type = arg_opts.get('type', 'str')
 
             if self.boolean(no_log):
                 log_args[param] = 'NOT_LOGGING_PARAMETER'
-            elif param in passwd_keys:
+            # try to capture all passwords/passphrase named fields
+            elif arg_type != 'bool' and PASSWORD_MATCH.search(param):
                 log_args[param] = 'NOT_LOGGING_PASSWORD'
+                self.warn('Module did not set no_log for %s' % param)
             else:
                 param_val = self.params[param]
                 if not isinstance(param_val, (text_type, binary_type)):
@@ -1857,7 +1908,7 @@ class AnsibleModule(object):
         elif arg in BOOLEANS_FALSE:
             return False
         else:
-            self.fail_json(msg='Boolean %s not in either boolean list' % arg)
+            self.fail_json(msg='%s is not a valid boolean. Valid booleans include: %s' % (to_text(arg), ','.join(['%s' % x for x in BOOLEANS])))
 
     def jsonify(self, data):
         for encoding in ("utf-8", "latin-1"):
@@ -1885,28 +1936,53 @@ class AnsibleModule(object):
         for path in self.cleanup_files:
             self.cleanup(path)
 
-    def exit_json(self, **kwargs):
-        ''' return from the module, without error '''
+    def _return_formatted(self, kwargs):
+
         self.add_path_info(kwargs)
-        if not 'changed' in kwargs:
-            kwargs['changed'] = False
+
         if 'invocation' not in kwargs:
             kwargs['invocation'] = {'module_args': self.params}
+
+        if 'warnings' in kwargs:
+            if isinstance(kwargs['warnings'], list):
+                for w in kwargs['warnings']:
+                    self.warn(w)
+            else:
+                self.warn(kwargs['warnings'])
+        if self._warnings:
+            kwargs['warnings'] = self._warnings
+
+        if 'deprecations' in kwargs:
+            if isinstance(kwargs['deprecations'], list):
+                for d in kwargs['deprecations']:
+                    self.warn(d)
+            else:
+                self.warn(kwargs['deprecations'])
+
+        if self._deprecations:
+            kwargs['deprecations'] = self._deprecations
+
         kwargs = remove_values(kwargs, self.no_log_values)
-        self.do_cleanup_files()
         print('\n%s' % self.jsonify(kwargs))
+
+    def exit_json(self, **kwargs):
+        ''' return from the module, without error '''
+
+        if not 'changed' in kwargs:
+            kwargs['changed'] = False
+
+        self.do_cleanup_files()
+        self._return_formatted(kwargs)
         sys.exit(0)
 
     def fail_json(self, **kwargs):
         ''' return from the module, with an error message '''
-        self.add_path_info(kwargs)
+
         assert 'msg' in kwargs, "implementation error -- msg to explain the error is required"
         kwargs['failed'] = True
-        if 'invocation' not in kwargs:
-            kwargs['invocation'] = {'module_args': self.params}
-        kwargs = remove_values(kwargs, self.no_log_values)
+
         self.do_cleanup_files()
-        print('\n%s' % self.jsonify(kwargs))
+        self._return_formatted(kwargs)
         sys.exit(1)
 
     def fail_on_missing_params(self, required_params=None):
@@ -2036,18 +2112,6 @@ class AnsibleModule(object):
         creating = not os.path.exists(b_dest)
 
         try:
-            login_name = os.getlogin()
-        except OSError:
-            # not having a tty can cause the above to fail, so
-            # just get the LOGNAME environment variable instead
-            login_name = os.environ.get('LOGNAME', None)
-
-        # if the original login_name doesn't match the currently
-        # logged-in user, or if the SUDO_USER environment variable
-        # is set, then this user has switched their credentials
-        switched_user = login_name and login_name != pwd.getpwuid(os.getuid())[0] or os.environ.get('SUDO_USER')
-
-        try:
             # Optimistically try a rename, solves some corner cases and can avoid useless work, throws exception if not atomic.
             os.rename(b_src, b_dest)
         except (IOError, OSError):
@@ -2055,7 +2119,7 @@ class AnsibleModule(object):
             if e.errno not in [errno.EPERM, errno.EXDEV, errno.EACCES, errno.ETXTBSY, errno.EBUSY]:
                 # only try workarounds for errno 18 (cross device), 1 (not permitted),  13 (permission denied)
                 # and 26 (text file busy) which happens on vagrant synced folders and other 'exotic' non posix file systems
-                self.fail_json(msg='Could not replace file: %s to %s: %s' % (src, dest, e))
+                self.fail_json(msg='Could not replace file: %s to %s: %s' % (src, dest, e), exception=traceback.format_exc())
             else:
                 b_dest_dir = os.path.dirname(b_dest)
                 # Use bytes here.  In the shippable CI, this fails with
@@ -2075,7 +2139,7 @@ class AnsibleModule(object):
                     # would end in something like:
                     #     file = _os.path.join(dir, pre + name + suf)
                     # TypeError: can't concat bytes to str
-                    self.fail_json(msg='Failed creating temp file for atomic move.  This usually happens when using Python3 less than Python3.5.  Please use Python2.x or Python3.5 or greater.', exception=sys.exc_info())
+                    self.fail_json(msg='Failed creating temp file for atomic move.  This usually happens when using Python3 less than Python3.5.  Please use Python2.x or Python3.5 or greater.', exception=traceback.format_exc())
 
                 b_tmp_dest_name = to_bytes(tmp_dest_name, errors='surrogate_or_strict')
 
@@ -2084,12 +2148,13 @@ class AnsibleModule(object):
                         # close tmp file handle before file operations to prevent text file busy errors on vboxfs synced folders (windows host)
                         os.close(tmp_dest_fd)
                         # leaves tmp file behind when sudo and not root
-                        if switched_user and os.getuid() != 0:
+                        try:
+                            shutil.move(b_src, b_tmp_dest_name)
+                        except OSError:
                             # cleanup will happen by 'rm' of tempdir
                             # copy2 will preserve some metadata
                             shutil.copy2(b_src, b_tmp_dest_name)
-                        else:
-                            shutil.move(b_src, b_tmp_dest_name)
+
                         if self.selinux_enabled():
                             self.set_context_if_different(
                                 b_tmp_dest_name, context, False)
@@ -2108,10 +2173,10 @@ class AnsibleModule(object):
                             if unsafe_writes and e.errno == errno.EBUSY:
                                 self._unsafe_writes(b_tmp_dest_name, b_dest)
                             else:
-                                self.fail_json(msg='Unable to rename file: %s to %s: %s' % (src, dest, e))
+                                self.fail_json(msg='Unable to rename file: %s to %s: %s' % (src, dest, e), exception=traceback.format_exc())
                     except (shutil.Error, OSError, IOError):
                         e = get_exception()
-                        self.fail_json(msg='Failed to replace file: %s to %s: %s' % (src, dest, e))
+                        self.fail_json(msg='Failed to replace file: %s to %s: %s' % (src, dest, e), exception=traceback.format_exc())
                 finally:
                     self.cleanup(b_tmp_dest_name)
 
@@ -2121,8 +2186,12 @@ class AnsibleModule(object):
             umask = os.umask(0)
             os.umask(umask)
             os.chmod(b_dest, DEFAULT_PERM & ~umask)
-            if switched_user:
-                os.chown(b_dest, os.getuid(), os.getgid())
+            try:
+                os.chown(b_dest, os.geteuid(), os.getegid())
+            except OSError:
+                # We're okay with trying our best here.  If the user is not
+                # root (or old Unices) they won't be able to chown.
+                pass
 
         if self.selinux_enabled():
             # rename might not preserve context
@@ -2143,7 +2212,7 @@ class AnsibleModule(object):
                     in_src.close()
         except (shutil.Error, OSError, IOError):
             e = get_exception()
-            self.fail_json(msg='Could not write data to file (%s) from (%s): %s' % (dest, src, e))
+            self.fail_json(msg='Could not write data to file (%s) from (%s): %s' % (dest, src, e), exception=traceback.format_exc())
 
 
     def _read_from_pipes(self, rpipes, rfds, file_descriptor):
@@ -2368,7 +2437,7 @@ class AnsibleModule(object):
                 # No pipes are left to read but process is not yet terminated
                 # Only then it is safe to wait for the process to be finished
                 # NOTE: Actually cmd.poll() is always None here if rpipes is empty
-                elif not rpipes and cmd.poll() == None:
+                elif not rpipes and cmd.poll() is None:
                     cmd.wait()
                     # The process is terminated. Since no pipes to read from are
                     # left, there is no need to call select() again.
@@ -2380,9 +2449,11 @@ class AnsibleModule(object):
             rc = cmd.returncode
         except (OSError, IOError):
             e = get_exception()
+            self.log("Error Executing CMD:%s Exception:%s" % (clean_args, to_native(e)))
             self.fail_json(rc=e.errno, msg=to_native(e), cmd=clean_args)
         except Exception:
             e = get_exception()
+            self.log("Error Executing CMD:%s Exception:%s" % (clean_args,to_native(traceback.format_exc())))
             self.fail_json(rc=257, msg=to_native(e), exception=traceback.format_exc(), cmd=clean_args)
 
         # Restore env settings

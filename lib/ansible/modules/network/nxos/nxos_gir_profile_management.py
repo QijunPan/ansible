@@ -131,12 +131,12 @@ except ImportError:
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -335,12 +335,12 @@ def execute_config_command(commands, module):
 
 def main():
     argument_spec = dict(
-            commands=dict(required=False, type='list'),
-            mode=dict(required=True, choices=['maintenance', 'normal']),
-            state=dict(choices=['absent', 'present'],
+        commands=dict(required=False, type='list'),
+        mode=dict(required=True, choices=['maintenance', 'normal']),
+        state=dict(choices=['absent', 'present'],
                        default='present'),
-            include_defaults=dict(default=False),
-            config=dict()
+        include_defaults=dict(default=False),
+        config=dict()
     )
     module = get_network_module(argument_spec=argument_spec,
                                 supports_check_mode=True)

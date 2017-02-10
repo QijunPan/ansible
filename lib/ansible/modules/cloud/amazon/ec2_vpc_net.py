@@ -118,9 +118,9 @@ def boto_exception(err):
     return error
 
 def vpc_exists(module, vpc, name, cidr_block, multi):
-    """Returns True or False in regards to the existence of a VPC. When supplied
+    """Returns None or a vpc object depending on the existence of a VPC. When supplied
     with a CIDR, it will check for matching tags to determine if it is a match
-    otherwise it will assume the VPC does not exist and thus return false.
+    otherwise it will assume the VPC does not exist and thus return None.
     """
     matched_vpc = None
 
@@ -130,11 +130,12 @@ def vpc_exists(module, vpc, name, cidr_block, multi):
         e_msg=boto_exception(e)
         module.fail_json(msg=e_msg)
 
-    if len(matching_vpcs) == 1:
+    if multi:
+        return None
+    elif len(matching_vpcs) == 1:
         matched_vpc = matching_vpcs[0]
     elif len(matching_vpcs) > 1:
-        if multi:
-            module.fail_json(msg='Currently there are %d VPCs that have the same name and '
+        module.fail_json(msg='Currently there are %d VPCs that have the same name and '
                              'CIDR block you specified. If you would like to create '
                              'the VPC anyway please pass True to the multi_ok param.' % len(matching_vpcs))
 
@@ -186,16 +187,16 @@ def get_vpc_values(vpc_obj):
 def main():
     argument_spec=ec2_argument_spec()
     argument_spec.update(dict(
-            name = dict(type='str', default=None, required=True),
-            cidr_block = dict(type='str', default=None, required=True),
-            tenancy = dict(choices=['default', 'dedicated'], default='default'),
-            dns_support = dict(type='bool', default=True),
-            dns_hostnames = dict(type='bool', default=True),
-            dhcp_opts_id = dict(type='str', default=None, required=False),
-            tags = dict(type='dict', required=False, default=None, aliases=['resource_tags']),
-            state = dict(choices=['present', 'absent'], default='present'),
-            multi_ok = dict(type='bool', default=False)
-        )
+        name = dict(type='str', default=None, required=True),
+        cidr_block = dict(type='str', default=None, required=True),
+        tenancy = dict(choices=['default', 'dedicated'], default='default'),
+        dns_support = dict(type='bool', default=True),
+        dns_hostnames = dict(type='bool', default=True),
+        dhcp_opts_id = dict(type='str', default=None, required=False),
+        tags = dict(type='dict', required=False, default=None, aliases=['resource_tags']),
+        state = dict(choices=['present', 'absent'], default='present'),
+        multi_ok = dict(type='bool', default=False)
+    )
     )
 
     module = AnsibleModule(

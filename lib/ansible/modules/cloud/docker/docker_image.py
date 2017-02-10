@@ -215,6 +215,7 @@ EXAMPLES = '''
     path: ./sinatra
     name: registry.ansible.com/chouseknecht/sinatra
     tag: v1
+    push: yes
 
 - name: Archive image
   docker_image:
@@ -249,7 +250,10 @@ image:
 from ansible.module_utils.docker_common import *
 
 try:
-    from docker.auth.auth import resolve_repository_name
+    if HAS_DOCKER_PY_2:
+        from docker.auth import resolve_repository_name
+    else:
+        from docker.auth.auth import resolve_repository_name
     from docker.utils.utils import parse_repository_tag
 except ImportError:
     # missing docker-py handled in docker_common
@@ -287,9 +291,9 @@ class ImageManager(DockerBaseClass):
         # If name contains a tag, it takes precedence over tag parameter.
         repo, repo_tag = parse_repository_tag(self.name)
         if repo_tag:
-           self.name = repo
-           self.tag = repo_tag
-        
+            self.name = repo
+            self.tag = repo_tag
+
         if self.state in ['present', 'build']:
             self.present()
         elif self.state == 'absent':

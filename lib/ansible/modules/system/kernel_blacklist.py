@@ -18,10 +18,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import re
-
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -61,14 +57,25 @@ EXAMPLES = '''
     state: present
 '''
 
+import os
+import re
+
 
 class Blacklist(object):
-    def __init__(self, module, filename):
-        if not os.path.exists(filename):
-            open(filename, 'a').close()
-
+    def __init__(self, module, filename, checkmode):
         self.filename = filename
         self.module = module
+        self.checkmode = checkmode
+
+    def create_file(self):
+        if not self.checkmode and not os.path.exists(self.filename):
+            open(self.filename, 'a').close()
+            return True
+        elif self.checkmode and not os.path.exists(self.filename):
+            self.filename = os.devnull
+            return True
+        else:
+            return False
 
     def get_pattern(self):
         return '^blacklist\s*' + self.module + '$'
@@ -97,7 +104,10 @@ class Blacklist(object):
         lines = self.readlines()
         pattern = self.get_pattern()
 
-        f = open(self.filename, 'w')
+        if self.checkmode:
+            f = open(os.devnull, 'w')
+        else:
+            f = open(self.filename, 'w')
 
         for line in lines:
             if not re.match(pattern, line.strip()):
@@ -106,9 +116,14 @@ class Blacklist(object):
         f.close()
 
     def add_module(self):
-        f = open(self.filename, 'a')
+        if self.checkmode:
+            f = open(os.devnull, 'a')
+        else:
+            f = open(self.filename, 'a')
+
         f.write('blacklist %s\n' % self.module)
 
+        f.close()
 
 def main():
     module = AnsibleModule(
@@ -118,7 +133,7 @@ def main():
                        default='present'),
             blacklist_file=dict(required=False, default=None)
         ),
-        supports_check_mode=False,
+        supports_check_mode=True,
     )
 
     args = dict(changed=False, failed=False,
@@ -129,7 +144,12 @@ def main():
     if module.params['blacklist_file']:
         filename = module.params['blacklist_file']
 
-    blacklist = Blacklist(args['name'], filename)
+    blacklist = Blacklist(args['name'], filename, module.check_mode)
+
+    if blacklist.create_file():
+        args['changed'] = True
+    else:
+        args['changed'] = False
 
     if blacklist.module_listed():
         if args['state'] == 'absent':

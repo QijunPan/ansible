@@ -23,6 +23,7 @@ import pwd
 import time
 
 from ansible import constants as C
+from ansible.compat.six import string_types
 from ansible.errors import AnsibleError
 from ansible.module_utils._text import to_bytes, to_native, to_text
 from ansible.module_utils.pycompat24 import get_exception
@@ -51,6 +52,7 @@ class ActionModule(ActionBase):
 
     def run(self, tmp=None, task_vars=None):
         ''' handler for template operations '''
+
         if task_vars is None:
             task_vars = dict()
 
@@ -144,10 +146,8 @@ class ActionModule(ActionBase):
             result['msg'] = type(e).__name__ + ": " + str(e)
             return result
 
-        remote_user = task_vars.get('ansible_ssh_user') or self._play_context.remote_user
         if not tmp:
-            tmp = self._make_tmp_path(remote_user)
-            self._cleanup_remote_tmp = True
+            tmp = self._make_tmp_path()
 
         local_checksum = checksum_s(resultant)
         remote_checksum = self.get_checksum(dest, task_vars, not directory_prepended, source=source, tmp=tmp)
@@ -170,16 +170,16 @@ class ActionModule(ActionBase):
                 xfered = self._transfer_data(self._connection._shell.join_path(tmp, 'source'), resultant)
 
                 # fix file permissions when the copy is done as a different user
-                self._fixup_perms2((tmp, xfered), remote_user)
+                self._fixup_perms2((tmp, xfered))
 
                 # run the copy module
                 new_module_args.update(
-                   dict(
-                       src=xfered,
-                       dest=dest,
-                       original_basename=os.path.basename(source),
-                       follow=True,
-                   ),
+                    dict(
+                        src=xfered,
+                        dest=dest,
+                        original_basename=os.path.basename(source),
+                        follow=True,
+                        ),
                 )
                 result.update(self._execute_module(module_name='copy', module_args=new_module_args, task_vars=task_vars, tmp=tmp, delete_remote_tmp=False))
 

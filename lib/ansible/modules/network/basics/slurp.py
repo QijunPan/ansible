@@ -42,17 +42,30 @@ notes:
    -  This module returns an 'in memory' base64 encoded version of the file, take into account that this will require at least twice the RAM as the original file size.
    - "See also: M(fetch)"
 requirements: []
-author: 
+author:
     - "Ansible Core Team"
     - "Michael DeHaan"
 '''
 
 EXAMPLES = '''
-ansible host -m slurp -a 'src=/tmp/xx'
-   host | success >> {
-      "content": "aGVsbG8gQW5zaWJsZSB3b3JsZAo=", 
-      "encoding": "base64"
-   }
+# Find out what the remote machine's mounts are:
+- slurp:
+    src: /proc/mounts
+  register: mounts
+
+- debug:
+    msg: "{{ mounts['content'] | b64decode }}"
+
+# From the commandline, find the pid of the remote machine's sshd
+# $ ansible host -m slurp -a 'src=/var/run/sshd.pid'
+# host | SUCCESS => {
+#     "changed": false,
+#     "content": "MjE3OQo=",
+#     "encoding": "base64",
+#     "source": "/var/run/sshd.pid"
+# }
+# $ echo MjE3OQo= | base64 -d
+# 2179
 '''
 
 import base64

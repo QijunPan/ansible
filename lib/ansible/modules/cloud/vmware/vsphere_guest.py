@@ -19,24 +19,6 @@
 # TODO:
 # Ability to set CPU/Memory reservations
 
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
-HAS_PYSPHERE = False
-try:
-    from pysphere import VIServer, VIProperty, MORTypes
-    from pysphere.resources import VimService_services as VI
-    from pysphere.vi_task import VITask
-    from pysphere import VIException, VIApiException, FaultTypes
-    HAS_PYSPHERE = True
-except ImportError:
-    pass
-
-import ssl
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -291,7 +273,7 @@ EXAMPLES = '''
   hw_guest_id: "rhel6_64Guest"
   hw_memtotal_mb: 2048
   hw_name: "centos64Guest"
-  hw_power_status: "POWERED ON",
+  hw_power_status: "POWERED ON"
   hw_processor_count: 2
   hw_product_uuid: "ef50bac8-2845-40ff-81d9-675315501dac"
 
@@ -319,6 +301,24 @@ as seen in the VMPowerState-Class of PySphere: http://git.io/vlwOq
     state: absent
     force: yes
 '''
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
+HAS_PYSPHERE = False
+try:
+    from pysphere import VIServer, VIProperty, MORTypes
+    from pysphere.resources import VimService_services as VI
+    from pysphere.vi_task import VITask
+    from pysphere import VIException, VIApiException, FaultTypes
+    HAS_PYSPHERE = True
+except ImportError:
+    pass
+
+import ssl
+
 
 def add_scsi_controller(module, s, config, devices, type="paravirtual", bus_num=0, disk_ctrl_key=1):
     # add a scsi controller
@@ -999,7 +999,7 @@ def reconfigure_vm(vsphere_client, vm, module, esxi, resource_pool, cluster_name
             except (KeyError, ValueError):
                 vsphere_client.disconnect()
                 module.fail_json(msg="Error in '%s' definition. Size needs to be specified as an integer." % disk)
-            
+
             # Make sure the new disk size is higher than the current value
             dev = dev_list[disk_num]
             if disksize < int(dev.capacityInKB):
@@ -1190,7 +1190,8 @@ def _find_path_in_tree(tree, path):
 
 def _get_folderid_for_path(vsphere_client, datacenter, path):
     content = vsphere_client._retrieve_properties_traversal(property_names=['name', 'parent'], obj_type=MORTypes.Folder)
-    if not content: return {}
+    if not content:
+        return {}
 
     node_list = [
         {

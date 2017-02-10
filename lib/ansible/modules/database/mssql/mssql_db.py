@@ -80,7 +80,7 @@ notes:
 requirements:
    - python >= 2.7
    - pymssql
-author: Vedit Firat Arig 
+author: Vedit Firat Arig
 '''
 
 EXAMPLES = '''
@@ -159,7 +159,7 @@ def main():
         argument_spec=dict(
             name=dict(required=True, aliases=['db']),
             login_user=dict(default=''),
-            login_password=dict(default=''),
+            login_password=dict(default='', no_log=True),
             login_host=dict(required=True),
             login_port=dict(default='1433'),
             target=dict(default=None),
@@ -181,7 +181,7 @@ def main():
     login_password = module.params['login_password']
     login_host = module.params['login_host']
     login_port = module.params['login_port']
-    
+
     login_querystring = login_host
     if login_port != "1433":
         login_querystring = "%s:%s" % (login_host, login_port)
@@ -194,10 +194,10 @@ def main():
         cursor = conn.cursor()
     except Exception as e:
         if "Unknown database" in str(e):
-                errno, errstr = e.args
-                module.fail_json(msg="ERROR: %s %s" % (errno, errstr))
+            errno, errstr = e.args
+            module.fail_json(msg="ERROR: %s %s" % (errno, errstr))
         else:
-                module.fail_json(msg="unable to connect, check login_user and login_password are correct, or alternatively check your @sysconfdir@/freetds.conf / ${HOME}/.freetds.conf")
+            module.fail_json(msg="unable to connect, check login_user and login_password are correct, or alternatively check your @sysconfdir@/freetds.conf / ${HOME}/.freetds.conf")
 
     conn.autocommit(True)
     changed = False

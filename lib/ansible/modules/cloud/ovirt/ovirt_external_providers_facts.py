@@ -19,18 +19,6 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import fnmatch
-import traceback
-
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ovirt import (
-    check_sdk,
-    create_connection,
-    get_dict_of_struct,
-    ovirt_facts_full_argument_spec,
-)
-
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -38,10 +26,10 @@ ANSIBLE_METADATA = {'status': ['preview'],
 DOCUMENTATION = '''
 ---
 module: ovirt_external_providers_facts
-short_description: Retrieve facts about one or more oVirt external_providers
+short_description: Retrieve facts about one or more oVirt external providers
 version_added: "2.3"
 description:
-    - "Retrieve facts about one or more oVirt external_providers."
+    - "Retrieve facts about one or more oVirt external providers."
 notes:
     - "This module creates a new top-level C(ovirt_external_providers) fact, which
        contains a list of external_providers."
@@ -91,6 +79,17 @@ openstack_network_providers:
     returned: "On success and if parameter 'type: os_network' is used."
     type: list
 '''
+
+import fnmatch
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ovirt import (
+    check_sdk,
+    create_connection,
+    get_dict_of_struct,
+    ovirt_facts_full_argument_spec,
+)
 
 
 def _external_provider_service(provider_type, system_service):

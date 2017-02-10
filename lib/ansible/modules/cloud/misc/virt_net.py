@@ -260,7 +260,7 @@ class LibvirtConnection(object):
                 else:
                     # pretend there was a change
                     res = 0
-                if res == 0: 
+                if res == 0:
                     return True
             else:
                 # change the host
@@ -369,6 +369,10 @@ class LibvirtConnection(object):
         state = self.find_entry(entryid).isPersistent()
         return ENTRY_STATE_PERSISTENT_MAP.get(state,"unknown")
 
+    def get_dhcp_leases(self, entryid):
+        network = self.find_entry(entryid)
+        return network.DHCPLeases()
+
     def define_from_xml(self, entryid, xml):
         if not self.module.check_mode:
             return self.conn.networkDefineXML(xml)
@@ -417,7 +421,7 @@ class VirtNetwork(object):
 
     def create(self, entryid):
         return self.conn.create(entryid)
-    
+
     def modify(self, entryid, xml):
         return self.conn.modify(entryid, xml)
 
@@ -454,6 +458,11 @@ class VirtNetwork(object):
             results[entry]["state"] = self.conn.get_status(entry)
             results[entry]["bridge"] = self.conn.get_bridge(entry)
             results[entry]["uuid"] = self.conn.get_uuid(entry)
+            try:
+                results[entry]["dhcp_leases"] = self.conn.get_dhcp_leases(entry)
+            # not supported on RHEL 6
+            except AttributeError:
+                pass
 
             try:
                 results[entry]["forward_mode"] = self.conn.get_forward(entry)

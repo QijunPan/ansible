@@ -98,12 +98,12 @@ except ImportError:
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -332,7 +332,7 @@ def get_commands(module, pkg, file_system):
 
     if fixed_pkg not in active_body[0]:
         commands.append('install activate {0}{1} force'.format(
-                                                            file_system, pkg))
+            file_system, pkg))
     command = 'show install committed'
     install_body = execute_show_command(command, module,
                                                 command_type='cli_show_ascii')
@@ -344,11 +344,11 @@ def get_commands(module, pkg, file_system):
 
 def main():
     argument_spec = dict(
-            pkg=dict(required=True),
-            file_system=dict(required=False, default='bootflash:'),
-            include_defaults=dict(default=False),
-            config=dict(),
-            save=dict(type='bool', default=False)
+        pkg=dict(required=True),
+        file_system=dict(required=False, default='bootflash:'),
+        include_defaults=dict(default=False),
+        config=dict(),
+        save=dict(type='bool', default=False)
     )
     module = get_network_module(argument_spec=argument_spec,
                                 supports_check_mode=True)

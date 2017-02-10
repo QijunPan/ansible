@@ -4,6 +4,12 @@ Ansible Changes By Release
 ## 2.3 TBD - ACTIVE DEVELOPMENT
 
 ###Major Changes:
+* Documented and renamed the previously released 'single var vaulting' feature, allowing user to use vault encryption for single variables in a normal YAML vars file.
+* Allow module_utils for custom modules to be placed in site-specific
+  directories and shipped in roles
+* On platforms that support it, use more modern system polling API instead of
+  select in the ssh connection plugin.  This removes one limitation on how many
+  parallel forks are feasible on these systems.
 
 ###Minor Changes:
 * The version and release facts for OpenBSD hosts were reversed.  This has been
@@ -15,6 +21,11 @@ Ansible Changes By Release
 * default strategy is now configurable via ansible.cfg or environment variable.
 * Added 'ansible_playbook_python' which contains 'current python executable', it can be blank in some cases in which Ansible is not invoked via the standard CLI (sys.executable limitation).
 * ansible-doc now displays path to module
+* added optional 'piped' transfer method to ssh plugin for when scp and sftp are missing
+* default controlpersist path is now a custom hash of host-port-user to avoid the socket path length errors for long hostnames
+* Refactored/standardized Windows modules, adding check-mode and diff support where possible
+* Extended Windows module API with parameter-type support, helper functions (i.e. Expand-Environment, Warn, Deprecate)
+* Various fixes for Python3 compatibility
 
 ###Deprecations:
 * Specifying --tags (or --skip-tags) multiple times on the command line
@@ -26,41 +37,255 @@ Ansible Changes By Release
   the new behaviour.  In 2.4, the default will be to merge and you can enable
   the old overwriting behaviour via the config option.  In 2.5, multiple --tags
   options will be merged with no way to go back to the old behaviour.
+* Modules
+  * ec2_vpc will be deprecated in 2.3 and removed in 2.5
+
+###Modules Notes:
+- oVirt/RHV
+  * Add dynamic inventory.
+  * Add support for 4.1 features.
+  * Add support for data centers, clusters, hosts, storage domains and networks management.
+  * Add support for hosts and virtual machines affinity groups and labels.
+  * Add support for users, groups and permissions management.
+  * Improved virtual machines and disks management.
 
 ###New Modules:
-- archive
-- aws
+- a10_server_axapi3
+- amazon
+  * aws_kms
+  * cloudfront_facts
+  * ec2_group_facts
   * ec2_lc_facts
+  * ec2_vpc_igw_facts
+  * ec2_vpc_nat_gateway_facts
+  * ec2_vpc_vgw_facts
+  * ecs_ecr
+  * elasticache_parameter_group.py
+  * elasticache_snapshot.py
+  * iam_role
+  * s3_sync
+- archive
+- beadm
+- bigswitch:
+  * bigmon_chain
+  * bigmon_policy
+- cloudengine
+  * ce_command
+- cloudscale_server
+- cloudstack
+  * cs_host
+  * cs_nic
+  * cs_region
+  * cs_role
+  * cs_vpc
+- dimensiondata_network
+- eos:
+  * eos_banner
+  * eos_system
+  * eos_user
 - f5
   * bigip_gtm_facts
   * bigip_hostname
   * bigip_snat_pool
+  * bigip_sys_global
+- foreman:
+  * foreman
+  * katello
 - free_ipa:
   * ipa_group
   * ipa_hbacrule
-  * ipa_hostgroup
   * ipa_host
+  * ipa_hostgroup
   * ipa_role
-  * ipa_sudocmdgroup
   * ipa_sudocmd
+  * ipa_sudocmdgroup
   * ipa_sudorule
   * ipa_user
-- infinibox:
+- gconftool2
+- google
+  * gce_eip
+  * gce_snapshot
+  * gcpubsub
+  * gcpubsub_facts
+- icinga2_feature
+- illumos:
+  * dladm_iptun
+  * dladm_linkprop
+  * dladm_vlan
+  * ipadm_addr
+  * ipadm_addrprop
+  * ipadm_ifprop
+- infinidat:
   * infini_export
   * infini_export_client
   * infini_fs
   * infini_host
   * infini_pool
   * infini_vol
+- ipa
+  * ipa_group
+  * ipa_hbacrule
+  * ipa_host
+  * ipa_hostgroup
+  * ipa_role
+  * ipa_sudocmd
+  * ipa_sudocmdgroup
+  * ipa_sudorule
+  * ipa_user
+- ipinfoio_facts
+- ios:
+  * ios_system
+  * ios_vrf
+- iosxr_system
+- jenkins_script
+- ldap:
+  * ldap_attr
+  * ldap_entry
+- logstash_plugin
+- net_command
+- netapp
+  * sf_snapshot_schedule_manager
+- nginx_status_facts
+- omapi_host
+- openssl:
+  * openssl_privatekey
+  * openssl_publickey
+- openstack
+  * os_nova_host_aggregate
+  * os_quota
 - openwrt_init
+- ovirt:
+  * ovirt_affinity_groups
+  * ovirt_affinity_labels
+  * ovirt_affinity_labels_facts
+  * ovirt_clusters
+  * ovirt_clusters_facts
+  * ovirt_datacenters
+  * ovirt_datacenters_facts
+  * ovirt_external_providers
+  * ovirt_external_providers_facts
+  * ovirt_groups
+  * ovirt_groups_facts
+  * ovirt_host_networks
+  * ovirt_host_pm
+  * ovirt_hosts
+  * ovirt_hosts_facts
+  * ovirt_mac_pools
+  * ovirt_networks
+  * ovirt_networks_facts
+  * ovirt_nics
+  * ovirt_nics_facts
+  * ovirt_permissions
+  * ovirt_permissions_facts
+  * ovirt_quotas
+  * ovirt_quotas_facts
+  * ovirt_snapshots
+  * ovirt_snapshots_facts
+  * ovirt_storage_domains
+  * ovirt_storage_domains_facts
+  * ovirt_tags
+  * ovirt_tags_facts
+  * ovirt_templates
+  * ovirt_templates_facts
+  * ovirt_users
+  * ovirt_users_facts
+  * ovirt_vmpools
+  * ovirt_vmpools_facts
+  * ovirt_vms_facts
+- pacemaker_cluster
+- packet:
+  * packet_device
+  * packet_sshkey
+- pamd
+- panos:
+  * panos_admin
+  * panos_admpwd
+  * panos_check
+  * panos_commit
+  * panos_dag
+  * panos_import
+  * panos_loadcfg
+  * panos_mgtconfig
+  * panos_nat_policy
+  * panos_pg
+  * panos_restart
+  * panos_service
+  * panos_loadcfg
+  * panos_mgtconfig
+  * panos_nat_policy
+  * panos_pg
+  * panos_restart
+  * panos_service
+- postgresql_schema
+- proxmox_kvm
+- pulp_repo
+- runit
+- serverless
+- set_stats
+- smartos:
+  * imgadm
+  * vmadm
+- sorcery
+- stacki_host
+- tempfile
+- tower:
+  * tower_organization
+- vmware_guest_facts
+- vmware_guest_snapshot
+- web_infrastructure
+  * jenkins_script
 - windows:
+  * win_find
+  * win_path
+  * win_psexec
+  * win_reg_stat
   * win_say
+  * win_shortcut
+- xbps
+- zfs:
+  * zfs_facts
+  * zpool_facts
 
 ####New Callbacks:
 
 * dense: minimal stdout output with fallback to default when verbose
 
-## 2.2 "The Battle of Evermore" - ACTIVE DEVELOPMENT
+####New: lookups
+
+* keyring: allows getting password from system keyrings
+
+
+## 2.2.1 "The Battle of Evermore" - 2017-01-16
+
+### Major Changes:
+
+* Security fix for CVE-2016-9587 - An attacker with control over a client system being managed by Ansible and the ability to send facts back to the Ansible server could use this flaw to execute arbitrary code on the Ansible server as the user and group Ansible is running as.
+
+### Minor Changes:
+
+* Fixes a bug where undefined variables in with_* loops would cause a task failure even if the when condition would cause the task to be skipped.
+* Fixed a bug related to roles where in certain situations a role may be run more than once despite not allowing duplicates.
+* Fixed some additional bugs related to atomic_move for modules.
+* Fixes multiple bugs related to field/attribute inheritance in nested blocks and includes, as well as task iteration logic during failures.
+* Fixed pip installing packages into virtualenvs using the system pip instead of the virtualenv pip.
+* Fixed dnf on systems with dnf-2.0.x (some changes in the API).
+* Fixed traceback with dnf install of groups.
+* Fixes a bug in which include_vars was not working with failed_when.
+* Fix for include_vars only loading files with .yml, .yaml, and .json extensions.  This was only supposed to apply to loading a directory of vars files.
+* Fixes several bugs related to properly incrementing the failed count in the host statistics.
+* Fixes a bug with listening handlers which did not specify a `name` field.
+* Fixes a bug with the `play_hosts` internal variable, so that it properly reflects the current list of hosts.
+* Fixes a bug related to the v2_playbook_on_start callback method and legacy (v1) plugins.
+* Fixes an openssh related process exit race condition, related to the fact that connections using ControlPersist do not close stderr.
+* Improvements and fixes to OpenBSD fact gathering.
+* Updated `make deb` to use pbuilder. Use `make local_deb` for the previous non-pbuilder build.
+* Fixed Windows async to avoid blocking due to handle inheritance.
+* Fixed bugs in the mount module on older Linux kernels and *BSDs
+* Various minor fixes for Python 3
+* Inserted some checks for jinja2-2.9, which can cause some issues with Ansible currently.
+
+
+## 2.2 "The Battle of Evermore" - 2016-11-01
 
 ###Major Changes:
 
@@ -70,7 +295,7 @@ Ansible Changes By Release
 * Added the ability to specify serial batches as a list (`serial: [1, 5, 10]`), which allows for so-called "canary" actions in one play.
 * Fixed 'local type' plugins and actions to have a more predictable relative path. Fixes a regression of 1.9 (PR #16805). Existing users of 2.x will need to adjust related tasks.
 * `meta` tasks can now use conditionals.
-* `raw` now returns `changed: true` to be consistent with shell/command/script modules. Add `changed_when: false` to `raw` tasks to restore the pre-2.2 behavior if necessary.n
+* `raw` now returns `changed: true` to be consistent with shell/command/script modules. Add `changed_when: false` to `raw` tasks to restore the pre-2.2 behavior if necessary.
 * New privilege escalation become method `ksu`
 * Windows `async:` support for long-running or background tasks.
 * Windows `environment:` support for setting module environment vars in play/task.
@@ -373,7 +598,30 @@ Notice given that the following will be removed in Ansible 2.4:
   * nxos_template
   * ops_template
 
-## 2.1.2 "The Song Remains the Same" - 09-29-2016
+## 2.1.4 "The Song Remains the Same" - 2017-01-16
+
+* Security fix for CVE-2016-9587 - An attacker with control over a client system being managed by Ansible and the ability to send facts back to the Ansible server could use this flaw to execute arbitrary code on the Ansible server as the user and group Ansible is running as.
+* Fixed a bug with conditionals in loops, where undefined variables and other errors will defer raising the error until the conditional has been evaluated.
+* Added a version check for jinja2-2.9, which does not fully work with Ansible currently.
+
+## 2.1.3 "The Song Remains the Same" - 2016-11-04
+
+* Security fix for CVE-2016-8628 - Command injection by compromised server via fact variables. In some situations, facts returned by modules could overwrite connection-based facts or some other special variables, leading to injected commands running on the Ansible controller as the user running Ansible (or via escalated permissions).
+* Security fix for CVE-2016-8614 - apt_key module not properly validating keys in some situations.
+
+###Minor Changes:
+* The subversion module from core now marks its password parameter as no_log so
+  the password is obscured when logging.
+* The postgresql_lang and postgresql_ext modules from extras now mark
+  login_password as no_log so the password is obscured when logging.
+* Fixed several bugs related to locating files relative to role/playbook directories.
+* Fixed a bug in the way hosts were tested for failed states, resulting in incorrectly skipped block sessions.
+* Fixed a bug in the way our custom JSON encoder is used for the to_json* filters.
+* Fixed some bugs related to the use of non-ascii characters in become passwords.
+* Fixed a bug with Azure modules which may be using the latest rc6 library.
+* Backported some docker_common fixes.
+
+## 2.1.2 "The Song Remains the Same" - 2016-09-29
 
 ###Minor Changes:
 * Fixed a bug related to creation of retry files (#17456)

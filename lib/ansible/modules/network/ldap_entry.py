@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# (c) 2016, Peter Sagerson <psagers@getcloak.com>
+# (c) 2016, Peter Sagerson <psagers@ignorare.net>
 # (c) 2016, Jiri Tyr <jiri.tyr@gmail.com>
 #
 # This file is part of Ansible
@@ -19,19 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pycompat24 import get_exception
-
-try:
-    import ldap
-    import ldap.modlist
-    import ldap.sasl
-
-    HAS_LDAP = True
-except ImportError:
-    HAS_LDAP = False
-
+ANSIBLE_METADATA = {'status': ['preview'],
+                    'supported_by': 'community',
+                    'version': '1.0'}
 
 DOCUMENTATION = """
 ---
@@ -156,6 +146,18 @@ EXAMPLES = """
 RETURN = """
 # Default return values
 """
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pycompat24 import get_exception
+
+try:
+    import ldap
+    import ldap.modlist
+    import ldap.sasl
+
+    HAS_LDAP = True
+except ImportError:
+    HAS_LDAP = False
 
 
 class LdapEntry(object):

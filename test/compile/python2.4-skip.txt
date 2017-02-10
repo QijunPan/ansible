@@ -17,6 +17,7 @@
 /lib/ansible/modules/database/mssql/
 /lib/ansible/modules/remote_management/foreman/
 /lib/ansible/modules/monitoring/zabbix.*.py
+/lib/ansible/modules/network/avi/
 /lib/ansible/modules/network/f5/
 /lib/ansible/modules/network/nmcli.py
 /lib/ansible/modules/notification/pushbullet.py
@@ -27,7 +28,9 @@
 /lib/ansible/modules/storage/infinidat/
 /lib/ansible/modules/univention/
 /lib/ansible/modules/web_infrastructure/letsencrypt.py
+/lib/ansible/modules/web_infrastructure/ansible_tower/
 /lib/ansible/module_utils/a10.py
+/lib/ansible/module_utils/ansible_tower.py
 /lib/ansible/module_utils/azure_rm_common.py
 /lib/ansible/module_utils/cloud.py
 /lib/ansible/module_utils/docker_common.py
@@ -41,6 +44,8 @@
 /lib/ansible/module_utils/rax.py
 /lib/ansible/module_utils/vca.py
 /lib/ansible/module_utils/vmware.py
+/lib/ansible/module_utils/netconf.py
+/lib/ansible/module_utils/junos.py
 /lib/ansible/parsing/
 /lib/ansible/playbook/
 /lib/ansible/plugins/

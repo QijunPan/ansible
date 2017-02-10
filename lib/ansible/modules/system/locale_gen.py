@@ -55,8 +55,9 @@ import os.path
 from subprocess import Popen, PIPE, call
 import re
 
-from ansible.module_utils.basic import *
+from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.pycompat24 import get_exception
+from ansible.module_utils._text import to_native
 
 LOCALE_NORMALIZATION = {
     ".utf8": ".UTF-8",
@@ -99,6 +100,7 @@ def is_available(name, ubuntuMode):
 def is_present(name):
     """Checks if the given locale is currently installed."""
     output = Popen(["locale", "-a"], stdout=PIPE).communicate()[0]
+    output = to_native(output)
     return any(fix_case(name) == fix_case(line) for line in output.splitlines())
 
 def fix_case(name):
@@ -152,14 +154,14 @@ def apply_change(targetState, name):
     else:
         # Delete locale.
         set_locale(name, enabled=False)
-    
+
     localeGenExitValue = call("locale-gen")
     if localeGenExitValue!=0:
         raise EnvironmentError(localeGenExitValue, "locale.gen failed to execute, it returned "+str(localeGenExitValue))
 
 def apply_change_ubuntu(targetState, name):
     """Create or remove locale.
-    
+
     Keyword arguments:
     targetState -- Desired state, either present or absent.
     name -- Name including encoding such as de_CH.UTF-8.
@@ -186,7 +188,7 @@ def apply_change_ubuntu(targetState, name):
         # Purge locales and regenerate.
         # Please provide a patch if you know how to avoid regenerating the locales to keep!
         localeGenExitValue = call(["locale-gen", "--purge"])
-    
+
     if localeGenExitValue!=0:
         raise EnvironmentError(localeGenExitValue, "locale.gen failed to execute, it returned "+str(localeGenExitValue))
 
@@ -225,7 +227,7 @@ def main():
     else:
         prev_state = "absent"
     changed = (prev_state!=state)
-    
+
     if module.check_mode:
         module.exit_json(changed=changed)
     else:

@@ -189,9 +189,10 @@ EXAMPLES = '''
 
 '''
 
+import os
 import ssl as ssl_lib
-import ConfigParser
 from distutils.version import LooseVersion
+
 try:
     from pymongo.errors import ConnectionFailure
     from pymongo.errors import OperationFailure
@@ -206,6 +207,11 @@ except ImportError:
         pymongo_found = True
 else:
     pymongo_found = True
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pycompat24 import get_exception
+from ansible.module_utils.six.moves import configparser
+
 
 # =========================================
 # MongoDB module specific support methods.
@@ -279,16 +285,16 @@ def user_remove(module, client, db_name, user):
         module.exit_json(changed=False, user=user)
 
 def load_mongocnf():
-    config = ConfigParser.RawConfigParser()
+    config = configparser.RawConfigParser()
     mongocnf = os.path.expanduser('~/.mongodb.cnf')
 
     try:
         config.readfp(open(mongocnf))
         creds = dict(
-          user=config.get('client', 'user'),
-          password=config.get('client', 'pass')
+            user=config.get('client', 'user'),
+            password=config.get('client', 'pass')
         )
-    except (ConfigParser.NoOptionError, IOError):
+    except (configparser.NoOptionError, IOError):
         return False
 
     return creds
@@ -296,21 +302,21 @@ def load_mongocnf():
 
 
 def check_if_roles_changed(uinfo, roles, db_name):
-# We must be aware of users which can read the oplog on a replicaset
-# Such users must have access to the local DB, but since this DB does not store users credentials
-# and is not synchronized among replica sets, the user must be stored on the admin db
-# Therefore their structure is the following :
-# {
-#     "_id" : "admin.oplog_reader",
-#     "user" : "oplog_reader",
-#     "db" : "admin",                    # <-- admin DB
-#     "roles" : [
-#         {
-#             "role" : "read",
-#             "db" : "local"             # <-- local DB
-#         }
-#     ]
-# }
+    # We must be aware of users which can read the oplog on a replicaset
+    # Such users must have access to the local DB, but since this DB does not store users credentials
+    # and is not synchronized among replica sets, the user must be stored on the admin db
+    # Therefore their structure is the following :
+    # {
+    #     "_id" : "admin.oplog_reader",
+    #     "user" : "oplog_reader",
+    #     "db" : "admin",                    # <-- admin DB
+    #     "roles" : [
+    #         {
+    #             "role" : "read",
+    #             "db" : "local"             # <-- local DB
+    #         }
+    #     ]
+    # }
 
     def make_sure_roles_are_a_list_of_dict(roles, db_name):
         output = list()
@@ -339,7 +345,7 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             login_user=dict(default=None),
-            login_password=dict(default=None),
+            login_password=dict(default=None, no_log=True),
             login_host=dict(default='localhost'),
             login_port=dict(default='27017'),
             login_database=dict(default=None),
@@ -446,9 +452,6 @@ def main():
 
     module.exit_json(changed=True, user=user)
 
-# import module snippets
-from ansible.module_utils.basic import *
-from ansible.module_utils.pycompat24 import get_exception
 
 if __name__ == '__main__':
     main()

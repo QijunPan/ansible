@@ -92,6 +92,7 @@ def strip_internal_keys(dirty):
             clean[k] = strip_internal_keys(dirty[k])
     return clean
 
+
 class VariableManager:
 
     def __init__(self):
@@ -301,7 +302,7 @@ class VariableManager:
                 # the with_first_found mechanism.
                 vars_file_list = vars_file_item
                 if not isinstance(vars_file_list, list):
-                     vars_file_list = [ vars_file_list ]
+                    vars_file_list = [ vars_file_list ]
 
                 # now we iterate through the (potential) files, and break out
                 # as soon as we read one from the list. If none are found, we
@@ -315,10 +316,10 @@ class VariableManager:
                                 for item in data:
                                     all_vars = combine_vars(all_vars, item)
                             break
-                        except AnsibleFileNotFound as e:
+                        except AnsibleFileNotFound:
                             # we continue on loader failures
                             continue
-                        except AnsibleParserError as e:
+                        except AnsibleParserError:
                             raise
                     else:
                         # if include_delegate_to is set to False, we ignore the missing
@@ -371,7 +372,7 @@ class VariableManager:
         # special case for the 'environment' magic variable, as someone
         # may have set it as a variable and we don't want to stomp on it
         if task:
-            if  'environment' not in all_vars:
+            if 'environment' not in all_vars:
                 all_vars['environment'] = task.environment
             else:
                 display.warning("The variable 'environment' appears to be used already, which is also used internally for environment variables set on the task/block/play. You should use a different variable name to avoid conflicts with this internal variable")
@@ -456,7 +457,7 @@ class VariableManager:
                 try:
                     loop_terms = listify_lookup_plugin_terms(terms=task.loop_args, templar=templar, loader=loader, fail_on_undefined=True, convert_bare=False)
                     items = lookup_loader.get(task.loop, loader=loader, templar=templar).run(terms=loop_terms, variables=vars_copy)
-                except AnsibleUndefinedVariable as e:
+                except AnsibleUndefinedVariable:
                     # This task will be skipped later due to this, so we just setup
                     # a dummy array for the later code so it doesn't fail
                     items = [None]

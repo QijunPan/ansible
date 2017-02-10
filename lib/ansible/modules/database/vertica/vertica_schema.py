@@ -26,7 +26,7 @@ module: vertica_schema
 version_added: '2.0'
 short_description: Adds or removes Vertica database schema and roles.
 description:
-  - Adds or removes Vertica database schema and, optionally, roles 
+  - Adds or removes Vertica database schema and, optionally, roles
     with schema access privileges.
   - A schema will not be removed until all the objects have been dropped.
   - In such a situation, if the module tries to remove the schema it
@@ -184,12 +184,12 @@ def update_roles(schema_facts, cursor, schema,
         cursor.execute("create role {0}".format(role))
         cursor.execute("grant usage on schema {0} to {1}".format(schema, role))
     for role in set(create_required) - set(create_existing):
-         cursor.execute("grant create on schema {0} to {1}".format(schema, role))
+        cursor.execute("grant create on schema {0} to {1}".format(schema, role))
 
 def check(schema_facts, schema, usage_roles, create_roles, owner):
     schema_key = schema.lower()
     if schema_key not in schema_facts:
-       return False
+        return False
     if owner and owner.lower() == schema_facts[schema_key]['owner'].lower():
         return False
     if cmp(sorted(usage_roles), sorted(schema_facts[schema_key]['usage_roles'])) != 0:
@@ -254,7 +254,7 @@ def main():
             cluster=dict(default='localhost'),
             port=dict(default='5433'),
             login_user=dict(default='dbadmin'),
-            login_password=dict(default=None),
+            login_password=dict(default=None, no_log=True),
         ), supports_check_mode = True)
 
     if not pyodbc_found:

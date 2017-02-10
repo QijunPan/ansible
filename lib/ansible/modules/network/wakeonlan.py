@@ -61,7 +61,7 @@ EXAMPLES = '''
 - wakeonlan:
     mac: '00:00:5E:00:53:66'
     broadcast: 192.0.2.23
-  delegate_to: loclahost
+  delegate_to: localhost
 
 - wakeonlan:
     mac: 00:00:5E:00:53:66
@@ -97,7 +97,7 @@ def wakeonlan(module, mac, broadcast, port):
         int(mac, 16)
     except ValueError:
         module.fail_json(msg="Incorrect MAC address format: %s" % mac_orig)
- 
+
     # Create payload for magic packet
     data = ''
     padding = ''.join(['FFFFFFFFFFFF', mac * 20])

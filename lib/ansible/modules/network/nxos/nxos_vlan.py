@@ -171,12 +171,12 @@ except ImportError:
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -555,17 +555,17 @@ def execute_show_command(command, module, command_type='cli_show'):
 
 def main():
     argument_spec = dict(
-            vlan_id=dict(required=False, type='str'),
-            vlan_range=dict(required=False),
-            name=dict(required=False),
-            vlan_state=dict(choices=['active', 'suspend'], required=False),
-            mapped_vni=dict(required=False, type='str'),
-            state=dict(choices=['present', 'absent'], default='present',
+        vlan_id=dict(required=False, type='str'),
+        vlan_range=dict(required=False),
+        name=dict(required=False),
+        vlan_state=dict(choices=['active', 'suspend'], required=False),
+        mapped_vni=dict(required=False, type='str'),
+        state=dict(choices=['present', 'absent'], default='present',
                        required=False),
-            admin_state=dict(choices=['up', 'down'], required=False),
-            include_defaults=dict(default=False),
-            config=dict(),
-            save=dict(type='bool', default=False)
+        admin_state=dict(choices=['up', 'down'], required=False),
+        include_defaults=dict(default=False),
+        config=dict(),
+        save=dict(type='bool', default=False)
     )
     module = get_network_module(argument_spec=argument_spec,
                                  mutually_exclusive=[['vlan_range', 'name'],
@@ -628,7 +628,7 @@ def main():
     end_state_vlans_list = existing_vlans_list
 
     if commands:
-        if existing.get('mapped_vni'):
+        if existing.get('mapped_vni') and state != 'absent':
             if (existing.get('mapped_vni') != proposed.get('mapped_vni') and
                 existing.get('mapped_vni') != '0' and proposed.get('mapped_vni') != 'default'):
                 commands.insert(1, 'no vn-segment')

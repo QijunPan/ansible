@@ -51,40 +51,41 @@ except ImportError:
 # in variable names.
 
 MAGIC_VARIABLE_MAPPING = dict(
-   connection       = ('ansible_connection',),
-   remote_addr      = ('ansible_ssh_host', 'ansible_host'),
-   remote_user      = ('ansible_ssh_user', 'ansible_user'),
-   port             = ('ansible_ssh_port', 'ansible_port'),
-   ssh_executable   = ('ansible_ssh_executable',),
-   accelerate_port  = ('ansible_accelerate_port',),
-   password         = ('ansible_ssh_pass', 'ansible_password'),
-   private_key_file = ('ansible_ssh_private_key_file', 'ansible_private_key_file'),
-   pipelining       = ('ansible_ssh_pipelining', 'ansible_pipelining'),
-   shell            = ('ansible_shell_type',),
-   network_os       = ('ansible_network_os',),
-   become           = ('ansible_become',),
-   become_method    = ('ansible_become_method',),
-   become_user      = ('ansible_become_user',),
-   become_pass      = ('ansible_become_password','ansible_become_pass'),
-   become_exe       = ('ansible_become_exe',),
-   become_flags     = ('ansible_become_flags',),
-   ssh_common_args  = ('ansible_ssh_common_args',),
-   docker_extra_args= ('ansible_docker_extra_args',),
-   sftp_extra_args  = ('ansible_sftp_extra_args',),
-   scp_extra_args   = ('ansible_scp_extra_args',),
-   ssh_extra_args   = ('ansible_ssh_extra_args',),
-   sudo             = ('ansible_sudo',),
-   sudo_user        = ('ansible_sudo_user',),
-   sudo_pass        = ('ansible_sudo_password', 'ansible_sudo_pass'),
-   sudo_exe         = ('ansible_sudo_exe',),
-   sudo_flags       = ('ansible_sudo_flags',),
-   su               = ('ansible_su',),
-   su_user          = ('ansible_su_user',),
-   su_pass          = ('ansible_su_password', 'ansible_su_pass'),
-   su_exe           = ('ansible_su_exe',),
-   su_flags         = ('ansible_su_flags',),
-   executable       = ('ansible_shell_executable',),
-   module_compression = ('ansible_module_compression',),
+    connection       = ('ansible_connection',),
+    remote_addr      = ('ansible_ssh_host', 'ansible_host'),
+    remote_user      = ('ansible_ssh_user', 'ansible_user'),
+    port             = ('ansible_ssh_port', 'ansible_port'),
+    ssh_executable   = ('ansible_ssh_executable',),
+    accelerate_port  = ('ansible_accelerate_port',),
+    password         = ('ansible_ssh_pass', 'ansible_password'),
+    private_key_file = ('ansible_ssh_private_key_file', 'ansible_private_key_file'),
+    pipelining       = ('ansible_ssh_pipelining', 'ansible_pipelining'),
+    shell            = ('ansible_shell_type',),
+    network_os       = ('ansible_network_os',),
+    become           = ('ansible_become',),
+    become_method    = ('ansible_become_method',),
+    become_user      = ('ansible_become_user',),
+    become_pass      = ('ansible_become_password','ansible_become_pass'),
+    become_exe       = ('ansible_become_exe',),
+    become_flags     = ('ansible_become_flags',),
+    ssh_common_args  = ('ansible_ssh_common_args',),
+    docker_extra_args= ('ansible_docker_extra_args',),
+    sftp_extra_args  = ('ansible_sftp_extra_args',),
+    scp_extra_args   = ('ansible_scp_extra_args',),
+    ssh_extra_args   = ('ansible_ssh_extra_args',),
+    ssh_transfer_method = ('ansible_ssh_transfer_method',),
+    sudo             = ('ansible_sudo',),
+    sudo_user        = ('ansible_sudo_user',),
+    sudo_pass        = ('ansible_sudo_password', 'ansible_sudo_pass'),
+    sudo_exe         = ('ansible_sudo_exe',),
+    sudo_flags       = ('ansible_sudo_flags',),
+    su               = ('ansible_su',),
+    su_user          = ('ansible_su_user',),
+    su_pass          = ('ansible_su_password', 'ansible_su_pass'),
+    su_exe           = ('ansible_su_exe',),
+    su_flags         = ('ansible_su_flags',),
+    executable       = ('ansible_shell_executable',),
+    module_compression = ('ansible_module_compression',),
 )
 
 b_SU_PROMPT_LOCALIZATIONS = [
@@ -167,12 +168,14 @@ class PlayContext(Base):
     _timeout          = FieldAttribute(isa='int', default=C.DEFAULT_TIMEOUT)
     _shell            = FieldAttribute(isa='string')
     _network_os       = FieldAttribute(isa='string')
+    _connection_user  = FieldAttribute(isa='string')
     _ssh_args         = FieldAttribute(isa='string', default=C.ANSIBLE_SSH_ARGS)
     _ssh_common_args  = FieldAttribute(isa='string')
     _sftp_extra_args  = FieldAttribute(isa='string')
     _scp_extra_args   = FieldAttribute(isa='string')
     _ssh_extra_args   = FieldAttribute(isa='string')
     _ssh_executable   = FieldAttribute(isa='string', default=C.ANSIBLE_SSH_EXECUTABLE)
+    _ssh_transfer_method = FieldAttribute(isa='string', default=C.DEFAULT_SSH_TRANSFER_METHOD)
     _connection_lockfd= FieldAttribute(isa='int')
     _pipelining       = FieldAttribute(isa='bool', default=C.ANSIBLE_SSH_PIPELINING)
     _accelerate       = FieldAttribute(isa='bool', default=False)
@@ -206,7 +209,12 @@ class PlayContext(Base):
     _force_handlers   = FieldAttribute(isa='bool', default=False)
     _start_at_task    = FieldAttribute(isa='string')
     _step             = FieldAttribute(isa='bool', default=False)
-    _diff             = FieldAttribute(isa='bool', default=False)
+    _diff             = FieldAttribute(isa='bool', default=C.DIFF_ALWAYS)
+
+    # Fact gathering settings
+    _gather_subset    = FieldAttribute(isa='string', default=C.DEFAULT_GATHER_SUBSET)
+    _gather_timeout   = FieldAttribute(isa='string', default=C.DEFAULT_GATHER_TIMEOUT)
+    _fact_path        = FieldAttribute(isa='string', default=C.DEFAULT_FACT_PATH)
 
     def __init__(self, play=None, options=None, passwords=None, connection_lockfd=None):
 
@@ -388,9 +396,9 @@ class PlayContext(Base):
         # become legacy updates -- from commandline
         if not new_info.become_pass:
             if new_info.become_method == 'sudo' and new_info.sudo_pass:
-               setattr(new_info, 'become_pass', new_info.sudo_pass)
+                setattr(new_info, 'become_pass', new_info.sudo_pass)
             elif new_info.become_method == 'su' and new_info.su_pass:
-               setattr(new_info, 'become_pass', new_info.su_pass)
+                setattr(new_info, 'become_pass', new_info.su_pass)
 
         # become legacy updates -- from inventory file (inventory overrides
         # commandline)
@@ -435,6 +443,7 @@ class PlayContext(Base):
         # additionally, we need to do this check after final connection has been
         # correctly set above ...
         if new_info.connection == 'local':
+            new_info.connection_user = new_info.remote_user
             new_info.remote_user = pwd.getpwuid(os.getuid()).pw_name
 
         # set no_log to default if it was not previouslly set

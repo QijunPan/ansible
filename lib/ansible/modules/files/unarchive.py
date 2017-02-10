@@ -37,7 +37,7 @@ options:
   src:
     description:
       - If remote_src=no (default), local path to archive file to copy to the target server; can be absolute or relative. If remote_src=yes, path on the target server to existing archive file to unpack.
-      - If remote_src=yes and src contains ://, the remote machine will download the file from the url first. (version_added 2.0)
+      - If remote_src=yes and src contains ://, the remote machine will download the file from the url first. (version_added 2.0). This is only for simple cases, for full download support look at the M(get_url) module.
     required: true
     default: null
   dest:
@@ -349,8 +349,10 @@ class ZipArchive(object):
                 continue
 
             # Check first and seventh field in order to skip header/footer
-            if len(pcs[0]) != 7 and len(pcs[0]) != 10: continue
-            if len(pcs[6]) != 15: continue
+            if len(pcs[0]) != 7 and len(pcs[0]) != 10:
+                continue
+            if len(pcs[6]) != 15:
+                continue
 
             # Possible entries:
             #   -rw-rws---  1.9 unx    2802 t- defX 11-Aug-91 13:48 perms.2660
@@ -555,13 +557,14 @@ class ZipArchive(object):
         return dict(unarchived=unarchived, rc=rc, out=out, err=err, cmd=cmd, diff=diff)
 
     def unarchive(self):
-        cmd = [ self.cmd_path, '-o', self.src ]
+        cmd = [ self.cmd_path, '-o' ]
         if self.opts:
             cmd.extend(self.opts)
-         # NOTE: Including (changed) files as arguments is problematic (limits on command line/arguments)
-#        if self.includes:
-            # NOTE: Command unzip has this strange behaviour where it expects quoted filenames to also be escaped
-#            cmd.extend(map(shell_escape, self.includes))
+        cmd.append(self.src)
+        # NOTE: Including (changed) files as arguments is problematic (limits on command line/arguments)
+        # if self.includes:
+        # NOTE: Command unzip has this strange behaviour where it expects quoted filenames to also be escaped
+        # cmd.extend(map(shell_escape, self.includes))
         if self.excludes:
             cmd.extend([ '-x' ] + self.excludes)
         cmd.extend([ '-d', self.dest ])
@@ -588,7 +591,7 @@ class TgzArchive(object):
         self.opts = module.params['extra_opts']
         self.module = module
         if self.module.check_mode:
-             self.module.exit_json(skipped=True, msg="remote module (%s) does not support check mode when using gtar" % self.module._name)
+            self.module.exit_json(skipped=True, msg="remote module (%s) does not support check mode when using gtar" % self.module._name)
         self.excludes = [ path.rstrip('/') for path in self.module.params['exclude']]
         # Prefer gtar (GNU tar) as it supports the compression options -z, -j and -J
         self.cmd_path = self.module.get_bin_path('gtar', None)
@@ -632,7 +635,7 @@ class TgzArchive(object):
 
         for filename in out.splitlines():
             # Compensate for locale-related problems in gtar output (octal unicode representation) #11348
-#            filename = filename.decode('string_escape')
+            # filename = filename.decode('string_escape')
             filename = codecs.escape_decode(filename)[0]
             if filename and filename not in self.excludes:
                 self._files_in_archive.append(to_native(filename))

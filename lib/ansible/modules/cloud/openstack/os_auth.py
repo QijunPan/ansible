@@ -15,13 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    import shade
-    from shade import meta
-    HAS_SHADE = True
-except ImportError:
-    HAS_SHADE = False
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -50,6 +43,14 @@ EXAMPLES = '''
     var: service_catalog
 '''
 
+try:
+    import shade
+    from shade import meta
+    HAS_SHADE = True
+except ImportError:
+    HAS_SHADE = False
+
+
 def main():
 
     argument_spec = openstack_full_argument_spec()
@@ -64,8 +65,8 @@ def main():
         module.exit_json(
             changed=False,
             ansible_facts=dict(
-              auth_token=cloud.auth_token,
-              service_catalog=cloud.service_catalog))
+                auth_token=cloud.auth_token,
+                service_catalog=cloud.service_catalog))
     except shade.OpenStackCloudException as e:
         module.fail_json(msg=str(e))
 

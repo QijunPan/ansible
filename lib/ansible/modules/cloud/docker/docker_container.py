@@ -31,7 +31,7 @@ description:
   - Manage the life cycle of docker containers.
   - Supports check mode. Run with --check and --diff to view config difference and list of actions to be taken.
 
-version_added: "2.1.0"
+version_added: "2.1"
 
 options:
   blkio_weight:
@@ -138,7 +138,7 @@ options:
       - exposed
   force_kill:
     description:
-      - Use the kill command when stopping a running container. 
+      - Use the kill command when stopping a running container.
     default: false
     required: false
   groups:
@@ -159,7 +159,7 @@ options:
         recreated. Stop this behavior by setting C(ignore_image) to I(True).
     default: false
     required: false
-    version_added: "2.2"      
+    version_added: "2.2"
   image:
     description:
       - Repository path and tag used to create the container. If an image is not found or pull is true, the image
@@ -207,6 +207,7 @@ options:
     description:
       - Specify the logging driver. Docker uses json-file by default.
     choices:
+      - none
       - json-file
       - syslog
       - journald
@@ -312,10 +313,10 @@ options:
         any other mappings.
       - If C(networks) parameter is provided, will inspect each network to see if there exists
         a bridge network with optional parameter com.docker.network.bridge.host_binding_ipv4.
-        If such a network is found, then published ports where no host IP address is specified 
+        If such a network is found, then published ports where no host IP address is specified
         will be bound to the host IP pointed to by com.docker.network.bridge.host_binding_ipv4.
-        Note that the first bridge network with a com.docker.network.bridge.host_binding_ipv4 
-        value encountered in the list of C(networks) is the one that will be used. 
+        Note that the first bridge network with a com.docker.network.bridge.host_binding_ipv4
+        value encountered in the list of C(networks) is the one that will be used.
     aliases:
       - ports
     required: false
@@ -393,7 +394,7 @@ options:
         re-create a matching container, even if it is running. Use restart to force a matching container to be stopped and
         restarted. Use force_kill to kill a container rather than stopping it. Use keep_volumes to retain volumes associated
         with a removed container.'
-      - 'I(stopped) - Asserts that the container is first I(present), and then if the container is running moves it to a stopped 
+      - 'I(stopped) - Asserts that the container is first I(present), and then if the container is running moves it to a stopped
         state. Use force_kill to kill a container rather than stopping it.'
     required: false
     default: started
@@ -517,7 +518,7 @@ EXAMPLES = '''
     name: mycontainer
     state: present
     image: ubuntu:14.04
-    command: sleep infinity 
+    command: sleep infinity
 
 - name: Stop a container
   docker_container:
@@ -545,7 +546,9 @@ EXAMPLES = '''
     log_options:
       syslog-address: tcp://my-syslog-server:514
       syslog-facility: daemon
-      syslog-tag: myservice
+      # NOTE: in Docker 1.13+ the "syslog-tag" option was renamed to "tag" for
+      # older docker installs, use "syslog-tag" instead
+      tag: myservice
 
 - name: Create db container and connect to network
   docker_container:
@@ -656,7 +659,10 @@ from ansible.module_utils.docker_common import *
 
 try:
     from docker import utils
-    from docker.utils.types import Ulimit
+    if HAS_DOCKER_PY_2:
+        from docker.types import Ulimit
+    else:
+        from docker.utils.types import Ulimit
 except:
     # missing docker-py handled in ansible.module_utils.docker
     pass
@@ -1204,7 +1210,7 @@ class Container(DockerBaseClass):
         # assuming if the container was running, it must have been detached.
         detach = not (config.get('AttachStderr') and config.get('AttachStdout'))
 
-        # "ExposedPorts": null returns None type & causes AttributeError - PR #5517 
+        # "ExposedPorts": null returns None type & causes AttributeError - PR #5517
         if config.get('ExposedPorts') is not None:
             expected_exposed = [re.sub(r'/.+$', '', p) for p in config.get('ExposedPorts', dict()).keys()]
         else:
@@ -1469,10 +1475,10 @@ class Container(DockerBaseClass):
             else:
                 expected_devices.append(
                     dict(
-                    CgroupPermissions=parts[2],
-                    PathInContainer=parts[1],
-                    PathOnHost=parts[0]
-                ))
+                        CgroupPermissions=parts[2],
+                        PathInContainer=parts[1],
+                        PathOnHost=parts[0]
+                        ))
         return expected_devices
 
     def _get_expected_entrypoint(self):
@@ -1868,7 +1874,7 @@ class ContainerManager(DockerBaseClass):
         return self._get_container(container_id)
 
     def container_remove(self, container_id, link=False, force=False):
-        volume_state = (not self.parameters.keep_volumes)  
+        volume_state = (not self.parameters.keep_volumes)
         self.log("remove container container:%s v:%s link:%s force%s" % (container_id, volume_state, link, force))
         self.results['actions'].append(dict(removed=container_id, volume_state=volume_state, link=link, force=force))
         self.results['changed'] = True
@@ -1958,7 +1964,9 @@ def main():
         kill_signal=dict(type='str'),
         labels=dict(type='dict'),
         links=dict(type='list'),
-        log_driver=dict(type='str', choices=['json-file', 'syslog', 'journald', 'gelf', 'fluentd', 'awslogs', 'splunk'], default=None),
+        log_driver=dict(type='str',
+                        choices=['none', 'json-file', 'syslog', 'journald', 'gelf', 'fluentd', 'awslogs', 'splunk'],
+                        default=None),
         log_options=dict(type='dict', aliases=['log_opt']),
         mac_address=dict(type='str'),
         memory=dict(type='str', default='0'),

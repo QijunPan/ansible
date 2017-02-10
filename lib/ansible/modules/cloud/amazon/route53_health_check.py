@@ -275,16 +275,16 @@ def update_health_check(conn, health_check_id, health_check_version, health_chec
 def main():
     argument_spec = ec2_argument_spec()
     argument_spec.update(dict(
-            state               = dict(choices=['present', 'absent'], default='present'),
-            ip_address          = dict(),
-            port                = dict(type='int'),
-            type                = dict(required=True, choices=['HTTP', 'HTTPS', 'HTTP_STR_MATCH', 'HTTPS_STR_MATCH', 'TCP']),
-            resource_path       = dict(),
-            fqdn                = dict(),
-            string_match        = dict(),
-            request_interval    = dict(type='int', choices=[10, 30], default=30),
-            failure_threshold   = dict(type='int', choices=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], default=3),
-        )
+        state               = dict(choices=['present', 'absent'], default='present'),
+        ip_address          = dict(),
+        port                = dict(type='int'),
+        type                = dict(required=True, choices=['HTTP', 'HTTPS', 'HTTP_STR_MATCH', 'HTTPS_STR_MATCH', 'TCP']),
+        resource_path       = dict(),
+        fqdn                = dict(),
+        string_match        = dict(),
+        request_interval    = dict(type='int', choices=[10, 30], default=30),
+        failure_threshold   = dict(type='int', choices=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], default=3),
+    )
     )
     module = AnsibleModule(argument_spec=argument_spec)
 
@@ -306,12 +306,12 @@ def main():
 
     # Default port
     if port_in is None:
-      if type_in in ['HTTP', 'HTTP_STR_MATCH']:
-        port_in = 80
-      elif type_in in ['HTTPS', 'HTTPS_STR_MATCH']:
-        port_in = 443
-      else:
-        module.fail_json(msg="parameter 'port' is required for 'type' TCP")
+        if type_in in ['HTTP', 'HTTP_STR_MATCH']:
+            port_in = 80
+        elif type_in in ['HTTPS', 'HTTPS_STR_MATCH']:
+            port_in = 443
+        else:
+            module.fail_json(msg="parameter 'port' is required for 'type' TCP")
 
     # string_match in relation with type
     if type_in in ['HTTP_STR_MATCH', 'HTTPS_STR_MATCH']:

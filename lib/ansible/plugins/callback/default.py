@@ -56,6 +56,8 @@ class CallbackModule(CallbackBase):
 
             self._display.display(msg, color=C.COLOR_ERROR)
 
+        self._handle_warnings(result._result)
+
         if result._task.loop and 'results' in result._result:
             self._process_items(result)
 
@@ -92,6 +94,8 @@ class CallbackModule(CallbackBase):
                 msg = "ok: [%s]" % result._host.get_name()
             color = C.COLOR_OK
 
+        self._handle_warnings(result._result)
+
         if result._task.loop and 'results' in result._result:
             self._process_items(result)
         else:
@@ -99,8 +103,6 @@ class CallbackModule(CallbackBase):
             if (self._display.verbosity > 0 or '_ansible_verbose_always' in result._result) and not '_ansible_verbose_override' in result._result:
                 msg += " => %s" % (self._dump_results(result._result),)
             self._display.display(msg, color=color)
-
-        self._handle_warnings(result._result)
 
     def v2_runner_on_skipped(self, result):
         if C.DISPLAY_SKIPPED_HOSTS:
@@ -227,8 +229,8 @@ class CallbackModule(CallbackBase):
         else:
             msg += "[%s]" % (result._host.get_name())
 
-        self._display.display(msg + " (item=%s) => %s" % (self._get_item(result._result), self._dump_results(result._result)), color=C.COLOR_ERROR)
         self._handle_warnings(result._result)
+        self._display.display(msg + " (item=%s) => %s" % (self._get_item(result._result), self._dump_results(result._result)), color=C.COLOR_ERROR)
 
     def v2_runner_item_on_skipped(self, result):
         if C.DISPLAY_SKIPPED_HOSTS:
@@ -267,6 +269,22 @@ class CallbackModule(CallbackBase):
             )
 
         self._display.display("", screen_only=True)
+
+        # print custom stats
+        if C.SHOW_CUSTOM_STATS and stats.custom:
+            self._display.banner("CUSTOM STATS: ")
+            # per host
+            #TODO: come up with 'pretty format'
+            for k in sorted(stats.custom.keys()):
+                if k == '_run':
+                    continue
+                self._display.display('\t%s: %s' % (k, self._dump_results(stats.custom[k], indent=1).replace('\n','')))
+
+            # print per run custom stats
+            if '_run' in stats.custom:
+                self._display.display("", screen_only=True)
+                self._display.display('\tRUN: %s' % self._dump_results(stats.custom['_run'], indent=1).replace('\n',''))
+            self._display.display("", screen_only=True)
 
     def v2_playbook_on_start(self, playbook):
         if self._display.verbosity > 1:

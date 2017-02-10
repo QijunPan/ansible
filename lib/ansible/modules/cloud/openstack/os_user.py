@@ -14,13 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-
-try:
-    import shade
-    HAS_SHADE = True
-except ImportError:
-    HAS_SHADE = False
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -143,6 +136,13 @@ user:
             sample: "demouser"
 '''
 
+try:
+    import shade
+    HAS_SHADE = True
+except ImportError:
+    HAS_SHADE = False
+
+
 def _needs_update(params_dict, user):
     for k, v in params_dict.items():
         if k not in ('password', 'update_password') and user[k] != v:
@@ -201,7 +201,7 @@ def main():
         module.fail_json(msg='shade is required for this module')
 
     name = module.params['name']
-    password = module.params['password']
+    password = module.params.pop('password')
     email = module.params['email']
     default_project = module.params['default_project']
     domain = module.params['domain']
@@ -223,7 +223,7 @@ def main():
                 if not password:
                     msg = ("update_password is %s but a password value is "
                           "missing") % update_password
-                    self.fail_json(msg=msg)
+                    module.fail_json(msg=msg)
             default_project_id = None
             if default_project:
                 default_project_id = _get_default_project_id(cloud, default_project)

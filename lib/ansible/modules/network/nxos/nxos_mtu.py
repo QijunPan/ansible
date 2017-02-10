@@ -135,12 +135,12 @@ except ImportError:
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -461,7 +461,7 @@ def is_default(interface, module):
 
     try:
         body = execute_show_command(
-                command, module, command_type='cli_show_ascii')[0]
+            command, module, command_type='cli_show_ascii')[0]
         if body == 'DNE':
             return 'DNE'
         else:
@@ -498,10 +498,10 @@ def get_interface_mode(interface, intf_type, module):
 
 def main():
     argument_spec = dict(
-            mtu=dict(type='str'),
-            interface=dict(type='str'),
-            sysmtu=dict(type='str'),
-            state=dict(choices=['absent', 'present'], default='present'),
+        mtu=dict(type='str'),
+        interface=dict(type='str'),
+        sysmtu=dict(type='str'),
+        state=dict(choices=['absent', 'present'], default='present'),
     )
     module = get_network_module(argument_spec=argument_spec,
                                 required_together=[['mtu', 'interface']],
@@ -548,8 +548,8 @@ def main():
     if sysmtu:
         if ((int(sysmtu) < 576 or int(sysmtu) > 9216 or
                 ((int(sysmtu) % 2) != 0))):
-                    module.fail_json(msg='Invalid MTU- needs to be an even '
-                                         'number between 576 and 9216')
+            module.fail_json(msg='Invalid MTU- needs to be an even '
+                                 'number between 576 and 9216')
 
     args = dict(mtu=mtu, sysmtu=sysmtu)
     proposed = dict((k, v) for k, v in args.items() if v is not None)

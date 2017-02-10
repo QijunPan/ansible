@@ -44,7 +44,7 @@ options:
   tags:
     description:
       - Dictionary of tags to look for and apply when creating a Peering Connection.
-    required: false    
+    required: false
   state:
     description:
       - Create, delete, accept, reject a peering connection.
@@ -65,9 +65,9 @@ EXAMPLES = '''
     peer_vpc_id: vpc-87654321
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix       
+      Project: phoenix
   register: vpc_peer
 
 - name: Accept local VPC peering request
@@ -85,9 +85,9 @@ EXAMPLES = '''
     peer_vpc_id: vpc-87654321
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix           
+      Project: phoenix
   register: vpc_peer
 
 - name: delete a local VPC peering Connection
@@ -106,9 +106,9 @@ EXAMPLES = '''
     peer_owner_id: 123456789102
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix         
+      Project: phoenix
   register: vpc_peer
 
 - name: Accept peering connection from remote account
@@ -127,9 +127,9 @@ EXAMPLES = '''
     peer_vpc_id: vpc-87654321
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix          
+      Project: phoenix
   register: vpc_peer
 
 - name: Reject a local VPC peering Connection
@@ -147,9 +147,9 @@ EXAMPLES = '''
     peer_owner_id: 123456789102
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix        
+      Project: phoenix
   register: vpc_peer
 
 - name: Accept a cross account VPC peering connection request
@@ -159,7 +159,7 @@ EXAMPLES = '''
     profile: bot03_profile_for_cross_account
     state: accept
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
       Project: phoenix
 
@@ -172,9 +172,9 @@ EXAMPLES = '''
     peer_owner_id: 123456789102
     state: present
     tags:
-      Name: Peering conenction for VPC 21 to VPC 22
+      Name: Peering connection for VPC 21 to VPC 22
       CostCode: CC1234
-      Project: phoenix         
+      Project: phoenix
   register: vpc_peer
 
 - name: Reject a cross account VPC peering Connection
@@ -269,7 +269,7 @@ def create_peer_connection(client, module):
         changed = True
         return (changed, peering_conn['VpcPeeringConnection']['VpcPeeringConnectionId'])
     except botocore.exceptions.ClientError as e:
-        module.fail_json(msg=str(e))                   
+        module.fail_json(msg=str(e))
 
 
 def peer_status(client, module):

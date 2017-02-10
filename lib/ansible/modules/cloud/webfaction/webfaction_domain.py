@@ -103,7 +103,7 @@ def main():
             state = dict(required=False, choices=['present', 'absent'], default='present'),
             subdomains = dict(required=False, default=[]),
             login_name = dict(required=True),
-            login_password = dict(required=True),
+            login_password = dict(required=True, no_log=True),
         ),
         supports_check_mode=True
     )
@@ -121,7 +121,7 @@ def main():
     existing_domain = domain_map.get(domain_name)
 
     result = {}
-    
+
     # Here's where the real stuff happens
 
     if domain_state == 'present':

@@ -82,6 +82,15 @@ class GalaxyRole(object):
                 self.paths = [x for x in galaxy.roles_paths]
                 self.paths = [os.path.join(x, self.name) for x in self.paths]
 
+    def __repr__(self):
+        """
+        Returns "rolename (version)" if version is not null
+        Returns "rolename" otherwise
+        """
+        if self.version:
+            return "%s (%s)" % (self.name, self.version)
+        else:
+            return self.name
 
     def __eq__(self, other):
         return self.name == other.name
@@ -199,7 +208,7 @@ class GalaxyRole(object):
             # create tar file from scm url
             tmp_file = RoleRequirement.scm_archive_role(**self.spec)
         elif self.src:
-            if  os.path.isfile(self.src):
+            if os.path.isfile(self.src):
                 # installing a local tar.gz
                 local_file = True
                 tmp_file = self.src
@@ -235,7 +244,7 @@ class GalaxyRole(object):
                     elif role_data.get('github_branch', None):
                         self.version = role_data['github_branch']
                     else:
-                        self.version = 'master' 
+                        self.version = 'master'
                 elif self.version != 'master':
                     if role_versions and str(self.version) not in [a.get('name', None) for a in role_versions]:
                         raise AnsibleError("- the specified version (%s) of %s was not found in the list of available versions (%s)." % (self.version, self.name, role_versions))
@@ -243,7 +252,7 @@ class GalaxyRole(object):
                 tmp_file = self.fetch(role_data)
 
         else:
-           raise AnsibleError("No valid role data found")
+            raise AnsibleError("No valid role data found")
 
 
         if tmp_file:
@@ -321,7 +330,7 @@ class GalaxyRole(object):
                             raise AnsibleError("Could not update files in %s: %s" % (self.path, str(e)))
 
                 # return the parsed yaml metadata
-                display.display("- %s was installed successfully" % self.name)
+                display.display("- %s was installed successfully" % str(self))
                 if not local_file:
                     try:
                         os.unlink(tmp_file)

@@ -87,7 +87,7 @@ EXAMPLES = '''
     name: acme
 
 # Create a new schema "acme" with a user "bob" who will own it
-- postgresql_schema: 
+- postgresql_schema:
     name: acme
     owner: bob
 
@@ -180,7 +180,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             login_user=dict(default="postgres"),
-            login_password=dict(default=""),
+            login_password=dict(default="", no_log=True),
             login_host=dict(default=""),
             login_unix_socket=dict(default=""),
             port=dict(default="5432"),
@@ -228,7 +228,7 @@ def main():
                                               .extensions
                                               .ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = db_connection.cursor(
-                cursor_factory=psycopg2.extras.DictCursor)
+            cursor_factory=psycopg2.extras.DictCursor)
     except Exception:
         e = get_exception()
         module.fail_json(msg="unable to connect to database: %s" %(text, str(e)))

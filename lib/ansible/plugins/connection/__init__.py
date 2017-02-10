@@ -49,7 +49,8 @@ BUFSIZE = 65536
 def ensure_connect(func):
     @wraps(func)
     def wrapped(self, *args, **kwargs):
-        self._connect()
+        if not self._connected:
+            self._connect()
         return func(self, *args, **kwargs)
     return wrapped
 
@@ -66,6 +67,7 @@ class ConnectionBase(with_metaclass(ABCMeta, object)):
     # language means any language.
     module_implementation_preferences = ('',)
     allow_executable = True
+    action_handler = 'normal'
 
     def __init__(self, play_context, new_stdin, *args, **kwargs):
         # All these hasattrs allow subclasses to override these parameters
@@ -253,7 +255,7 @@ class ConnectionBase(with_metaclass(ABCMeta, object)):
             return False
         elif isinstance(self._play_context.prompt, string_types):
             b_prompt = to_bytes(self._play_context.prompt)
-            return b_output.startswith(b_prompt)
+            return b_prompt in b_output
         else:
             return self._play_context.prompt(b_output)
 

@@ -100,12 +100,12 @@ except ImportError:
 
 
 def to_list(val):
-     if isinstance(val, (list, tuple)):
-         return list(val)
-     elif val is not None:
-         return [val]
-     else:
-         return list()
+    if isinstance(val, (list, tuple)):
+        return list(val)
+    elif val is not None:
+        return [val]
+    else:
+        return list()
 
 
 class CustomNetworkConfig(NetworkConfig):
@@ -339,7 +339,7 @@ def get_vtp_config(module):
     command = 'show vtp status'
 
     body = execute_show_command(
-            command, module, command_type='cli_show_ascii')[0]
+        command, module, command_type='cli_show_ascii')[0]
     vtp_parsed = {}
 
     if body:
@@ -378,7 +378,7 @@ def get_vtp_password(module):
 
 def main():
     argument_spec = dict(
-            domain=dict(type='str', required=True),
+        domain=dict(type='str', required=True),
     )
     module = get_network_module(argument_spec=argument_spec,
                                 supports_check_mode=True)

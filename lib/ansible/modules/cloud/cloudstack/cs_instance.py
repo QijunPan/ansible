@@ -477,14 +477,20 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
             if self.template:
                 return self._get_by_key(key, self.template)
 
+            rootdisksize = self.module.params.get('root_disk_size')
             args['templatefilter'] = self.module.params.get('template_filter')
             templates = self.cs.listTemplates(**args)
             if templates:
                 for t in templates['template']:
                     if template in [ t['displaytext'], t['name'], t['id'] ]:
+                        if rootdisksize and t['size'] > rootdisksize*1024**3:
+                            continue
                         self.template = t
                         return self._get_by_key(key, self.template)
-            self.module.fail_json(msg="Template '%s' not found" % template)
+            more_info = ""
+            if rootdisksize:
+                more_info = " (with size <= %s)" % rootdisksize
+            self.module.fail_json(msg="Template '%s' not found%s" % (template, more_info))
 
         elif iso:
             if self.iso:
@@ -533,13 +539,21 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
                     if not vpc_id and self.is_vm_in_vpc(vm=v):
                         continue
                     if instance_name.lower() in [ v['name'].lower(), v['displayname'].lower(), v['id'] ]:
-                        # Query the user data if we need to
-                        if 'userdata' not in v and self.get_user_data() is not None:
-                            res = self.cs.getVirtualMachineUserData(virtualmachineid=v['id'])
-                            v['userdata'] = res['virtualmachineuserdata'].get('userdata',"")
                         self.instance = v
                         break
         return self.instance
+
+
+    def _get_instance_user_data(self, instance):
+        # Query the user data if we need to
+        if 'userdata' in instance:
+            return instance['userdata']
+
+        user_data = ""
+        if self.get_user_data() is not None:
+            res = self.cs.getVirtualMachineUserData(virtualmachineid=instance['id'])
+            user_data = res['virtualmachineuserdata'].get('userdata',"")
+        return user_data
 
 
     def get_iptonetwork_mappings(self):
@@ -556,6 +570,36 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
         for i, data in enumerate(network_mappings):
             res.append({'networkid': ids[i], 'ip': data['ip']})
         return res
+
+
+    def ssh_key_has_changed(self):
+        ssh_key_name = self.module.params.get('ssh_key')
+        if ssh_key_name is None:
+            return False
+
+        instance_ssh_key_name = self.instance.get('keypair')
+        if instance_ssh_key_name is None:
+            return True
+
+        if ssh_key_name == instance_ssh_key_name:
+            return False
+
+        args = {
+            'domainid': self.get_domain('id'),
+            'account': self.get_account('name'),
+            'projectid': self.get_project('id')
+        }
+
+        args['name'] = instance_ssh_key_name
+        res = self.cs.listSSHKeyPairs(**args)
+        instance_ssh_key = res['sshkeypair'][0]
+
+        args['name'] = ssh_key_name
+        res = self.cs.listSSHKeyPairs(**args)
+        param_ssh_key = res['sshkeypair'][0]
+        if param_ssh_key['fingerprint'] != instance_ssh_key['fingerprint']:
+            return True
+        return False
 
 
     def security_groups_has_changed(self):
@@ -717,6 +761,7 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
         args_instance_update = {}
         args_instance_update['id'] = instance['id']
         args_instance_update['userdata'] = self.get_user_data()
+        instance['userdata'] = self._get_instance_user_data(instance)
         args_instance_update['ostypeid'] = self.get_os_type(key='id')
         if self.module.params.get('group'):
             args_instance_update['group'] = self.module.params.get('group')
@@ -724,13 +769,7 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
             args_instance_update['displayname'] = self.module.params.get('display_name')
         instance_changed = self.has_changed(args_instance_update, instance)
 
-        # SSH key data
-        args_ssh_key = {}
-        args_ssh_key['id'] = instance['id']
-        args_ssh_key['projectid'] = self.get_project(key='id')
-        if self.module.params.get('ssh_key'):
-            args_ssh_key['keypair'] = self.module.params.get('ssh_key')
-        ssh_key_changed = self.has_changed(args_ssh_key, instance)
+        ssh_key_changed = self.ssh_key_has_changed()
 
         security_groups_changed = self.security_groups_has_changed()
 
@@ -773,6 +812,11 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
 
                     # Reset SSH key
                     if ssh_key_changed:
+                        # SSH key data
+                        args_ssh_key = {}
+                        args_ssh_key['id'] = instance['id']
+                        args_ssh_key['projectid'] = self.get_project(key='id')
+                        args_ssh_key['keypair'] = self.module.params.get('ssh_key')
                         instance = self.cs.resetSSHKeyForVirtualMachine(**args_ssh_key)
                         if 'errortext' in instance:
                             self.module.fail_json(msg="Failed: '%s'" % instance['errortext'])
@@ -921,6 +965,7 @@ class AnsibleCloudStackInstance(AnsibleCloudStack):
     def get_result(self, instance):
         super(AnsibleCloudStackInstance, self).get_result(instance)
         if instance:
+            self.result['user_data'] = self._get_instance_user_data(instance)
             if 'securitygroup' in instance:
                 security_groups = []
                 for securitygroup in instance['securitygroup']:

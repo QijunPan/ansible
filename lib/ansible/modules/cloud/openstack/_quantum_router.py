@@ -16,16 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    try:
-        from neutronclient.neutron import client
-    except ImportError:
-        from quantumclient.quantum import client
-    from keystoneclient.v2_0 import client as ksclient
-    HAVE_DEPS = True
-except ImportError:
-    HAVE_DEPS = False
-
 ANSIBLE_METADATA = {'status': ['deprecated'],
                     'supported_by': 'community',
                     'version': '1.0'}
@@ -35,7 +25,7 @@ DOCUMENTATION = '''
 module: quantum_router
 version_added: "1.2"
 author: "Benno Joy (@bennojoy)"
-deprecated: Deprecated in 2.0. Use os_router instead
+deprecated: Deprecated in 2.0. Use M(os_router) instead.
 short_description: Create or Remove router from openstack
 description:
    - Create or Delete routers from OpenStack
@@ -101,8 +91,19 @@ EXAMPLES = '''
     name: router1
 '''
 
+try:
+    try:
+        from neutronclient.neutron import client
+    except ImportError:
+        from quantumclient.quantum import client
+    from keystoneclient.v2_0 import client as ksclient
+    HAVE_DEPS = True
+except ImportError:
+    HAVE_DEPS = False
+
 _os_keystone = None
 _os_tenant_id = None
+
 
 def _get_ksclient(module, kwargs):
     try:
@@ -129,8 +130,8 @@ def _get_neutron_client(module, kwargs):
     token = _ksclient.auth_token
     endpoint = _get_endpoint(module, _ksclient)
     kwargs = {
-            'token': token,
-            'endpoint_url': endpoint
+        'token': token,
+        'endpoint_url': endpoint
     }
     try:
         neutron = client.Client('2.0', **kwargs)
@@ -154,8 +155,8 @@ def _set_tenant_id(module):
 
 def _get_router_id(module, neutron):
     kwargs = {
-            'name': module.params['name'],
-            'tenant_id': _os_tenant_id,
+        'name': module.params['name'],
+        'tenant_id': _os_tenant_id,
     }
     try:
         routers = neutron.list_routers(**kwargs)
@@ -167,9 +168,9 @@ def _get_router_id(module, neutron):
 
 def _create_router(module, neutron):
     router = {
-            'name': module.params['name'],
-            'tenant_id': _os_tenant_id,
-            'admin_state_up': module.params['admin_state_up'],
+        'name': module.params['name'],
+        'tenant_id': _os_tenant_id,
+        'admin_state_up': module.params['admin_state_up'],
     }
     try:
         new_router = neutron.create_router(dict(router=router))

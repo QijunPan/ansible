@@ -299,9 +299,9 @@ class AnsibleCloudStackFirewall(AnsibleCloudStack):
 
     def _icmp_match(self, rule, protocol, icmp_code, icmp_type):
         return protocol == 'icmp' \
-           and protocol == rule['protocol'] \
-           and icmp_code == rule['icmpcode'] \
-           and icmp_type == rule['icmptype']
+            and protocol == rule['protocol'] \
+            and icmp_code == rule['icmpcode'] \
+            and icmp_type == rule['icmptype']
 
 
     def _type_cidr_match(self, rule, cidr):
@@ -335,7 +335,7 @@ class AnsibleCloudStackFirewall(AnsibleCloudStack):
 
                 poll_async = self.module.params.get('poll_async')
                 if poll_async:
-                     firewall_rule = self.poll_job(res, 'firewallrule')
+                    firewall_rule = self.poll_job(res, 'firewallrule')
         return firewall_rule
 
 
@@ -359,7 +359,7 @@ class AnsibleCloudStackFirewall(AnsibleCloudStack):
 
                 poll_async = self.module.params.get('poll_async')
                 if poll_async:
-                     res = self.poll_job(res, 'firewallrule')
+                    res = self.poll_job(res, 'firewallrule')
         return firewall_rule
 
 

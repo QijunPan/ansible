@@ -33,13 +33,13 @@ options:
     required: false
     default: null
     aliases: ['keypair']
-  id:        
+  id:
     version_added: "1.1"
-    description:        
-      - identifier for this instance or set of instances, so that the module will be idempotent with respect to EC2 instances. This identifier is valid for at least 24 hours after the termination of the instance, and should not be reused for another call later on. For details, see the description of client token at U(http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Run_Instance_Idempotency.html).        
-    required: false        
-    default: null        
-    aliases: []        
+    description:
+      - identifier for this instance or set of instances, so that the module will be idempotent with respect to EC2 instances. This identifier is valid for at least 24 hours after the termination of the instance, and should not be reused for another call later on. For details, see the description of client token at U(http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Run_Instance_Idempotency.html).
+    required: false
+    default: null
+    aliases: []
   group:
     description:
       - security group (or list of groups) to use with the instance
@@ -603,6 +603,8 @@ from ast import literal_eval
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.six import get_function_code
 
+from distutils.version import LooseVersion
+
 try:
     import boto.ec2
     from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
@@ -768,6 +770,15 @@ def boto_supports_profile_name_arg(ec2):
     run_instances_method = getattr(ec2, 'run_instances')
     return 'instance_profile_name' in get_function_code(run_instances_method).co_varnames
 
+def boto_supports_volume_encryption():
+    """
+    Check if Boto library supports encryption of EBS volumes (added in 2.29.0)
+
+    Returns:
+        True if boto library has the named param as an argument on the request_spot_instances method, else False
+    """
+    return hasattr(boto, 'Version') and LooseVersion(boto.Version) >= LooseVersion('2.29.0')
+
 def create_block_device(module, ec2, volume):
     # Not aware of a way to determine this programatically
     # http://aws.amazon.com/about-aws/whats-new/2013/10/09/ebs-provisioned-iops-maximum-iops-gb-ratio-increased-to-30-1/
@@ -798,13 +809,21 @@ def create_block_device(module, ec2, volume):
     if 'ephemeral' in volume:
         if 'snapshot' in volume:
             module.fail_json(msg = 'Cannot set both ephemeral and snapshot')
-    return BlockDeviceType(snapshot_id=volume.get('snapshot'),
-                           ephemeral_name=volume.get('ephemeral'),
-                           size=volume.get('volume_size'),
-                           volume_type=volume_type,
-                           delete_on_termination=volume.get('delete_on_termination', False),
-                           iops=volume.get('iops'),
-                           encrypted=volume.get('encrypted', None))
+    if boto_supports_volume_encryption():
+        return BlockDeviceType(snapshot_id=volume.get('snapshot'),
+                               ephemeral_name=volume.get('ephemeral'),
+                               size=volume.get('volume_size'),
+                               volume_type=volume_type,
+                               delete_on_termination=volume.get('delete_on_termination', False),
+                               iops=volume.get('iops'),
+                               encrypted=volume.get('encrypted', None))
+    else:
+        return BlockDeviceType(snapshot_id=volume.get('snapshot'),
+                               ephemeral_name=volume.get('ephemeral'),
+                               size=volume.get('volume_size'),
+                               volume_type=volume_type,
+                               delete_on_termination=volume.get('delete_on_termination', False),
+                               iops=volume.get('iops'))
 
 def boto_supports_param_in_spot_request(ec2, param):
     """
@@ -1014,14 +1033,14 @@ def create_instances(module, ec2, vpc, override_count=None):
             grp_details = ec2.get_all_security_groups(group_ids=group_id)
             group_name = [grp_item.name for grp_item in grp_details]
     except boto.exception.NoAuthHandlerFound as e:
-            module.fail_json(msg = str(e))
+        module.fail_json(msg = str(e))
 
     # Lookup any instances that much our run id.
 
     running_instances = []
     count_remaining = int(count)
 
-    if id != None:
+    if id is not None:
         filter_dict = {'client-token':id, 'instance-state-name' : 'running'}
         previous_reservations = ec2.get_all_instances(None, filter_dict)
         for res in previous_reservations:
@@ -1046,11 +1065,11 @@ def create_instances(module, ec2, vpc, override_count=None):
                       'user_data': user_data}
 
             if ebs_optimized:
-              params['ebs_optimized'] = ebs_optimized
+                params['ebs_optimized'] = ebs_optimized
 
             # 'tenancy' always has a default value, but it is not a valid parameter for spot instance request
             if not spot_price:
-              params['tenancy'] = tenancy
+                params['tenancy'] = tenancy
 
             if boto_supports_profile_name_arg(ec2):
                 params['instance_profile_name'] = instance_profile_name
@@ -1116,18 +1135,18 @@ def create_instances(module, ec2, vpc, override_count=None):
             if not spot_price:
                 if assign_public_ip and private_ip:
                     params.update(dict(
-                      min_count          = count_remaining,
-                      max_count          = count_remaining,
-                      client_token       = id,
-                      placement_group    = placement_group,
+                        min_count          = count_remaining,
+                        max_count          = count_remaining,
+                        client_token       = id,
+                        placement_group    = placement_group,
                     ))
                 else:
                     params.update(dict(
-                      min_count          = count_remaining,
-                      max_count          = count_remaining,
-                      client_token       = id,
-                      placement_group    = placement_group,
-                      private_ip_address = private_ip,
+                        min_count          = count_remaining,
+                        max_count          = count_remaining,
+                        client_token       = id,
+                        placement_group    = placement_group,
+                        private_ip_address = private_ip,
                     ))
 
                 # For ordinary (not spot) instances, we can select 'stop'
@@ -1165,8 +1184,8 @@ def create_instances(module, ec2, vpc, override_count=None):
                 if boto_supports_param_in_spot_request(ec2, 'placement_group'):
                     params['placement_group'] = placement_group
                 elif placement_group :
-                        module.fail_json(
-                            msg="placement_group parameter requires Boto version 2.3.0 or higher.")
+                    module.fail_json(
+                        msg="placement_group parameter requires Boto version 2.3.0 or higher.")
 
                 # You can't tell spot instances to 'stop'; they will always be
                 # 'terminate'd. For convenience, we'll ignore the latter value.
@@ -1518,56 +1537,56 @@ def restart_instances(module, ec2, instance_ids, state, instance_tags):
 def main():
     argument_spec = ec2_argument_spec()
     argument_spec.update(dict(
-            key_name = dict(aliases = ['keypair']),
-            id = dict(),
-            group = dict(type='list', aliases=['groups']),
-            group_id = dict(type='list'),
-            zone = dict(aliases=['aws_zone', 'ec2_zone']),
-            instance_type = dict(aliases=['type']),
-            spot_price = dict(),
-            spot_type = dict(default='one-time', choices=["one-time", "persistent"]),
-            spot_launch_group = dict(),
-            image = dict(),
-            kernel = dict(),
-            count = dict(type='int', default='1'),
-            monitoring = dict(type='bool', default=False),
-            ramdisk = dict(),
-            wait = dict(type='bool', default=False),
-            wait_timeout = dict(default=300),
-            spot_wait_timeout = dict(default=600),
-            placement_group = dict(),
-            user_data = dict(),
-            instance_tags = dict(type='dict'),
-            vpc_subnet_id = dict(),
-            assign_public_ip = dict(type='bool', default=False),
-            private_ip = dict(),
-            instance_profile_name = dict(),
-            instance_ids = dict(type='list', aliases=['instance_id']),
-            source_dest_check = dict(type='bool', default=True),
-            termination_protection = dict(type='bool', default=None),
-            state = dict(default='present', choices=['present', 'absent', 'running', 'restarted', 'stopped']),
-            instance_initiated_shutdown_behavior=dict(default=None, choices=['stop', 'terminate']),
-            exact_count = dict(type='int', default=None),
-            count_tag = dict(),
-            volumes = dict(type='list'),
-            ebs_optimized = dict(type='bool', default=False),
-            tenancy = dict(default='default'),
-            network_interfaces = dict(type='list', aliases=['network_interface'])
-        )
+        key_name = dict(aliases = ['keypair']),
+        id = dict(),
+        group = dict(type='list', aliases=['groups']),
+        group_id = dict(type='list'),
+        zone = dict(aliases=['aws_zone', 'ec2_zone']),
+        instance_type = dict(aliases=['type']),
+        spot_price = dict(),
+        spot_type = dict(default='one-time', choices=["one-time", "persistent"]),
+        spot_launch_group = dict(),
+        image = dict(),
+        kernel = dict(),
+        count = dict(type='int', default='1'),
+        monitoring = dict(type='bool', default=False),
+        ramdisk = dict(),
+        wait = dict(type='bool', default=False),
+        wait_timeout = dict(default=300),
+        spot_wait_timeout = dict(default=600),
+        placement_group = dict(),
+        user_data = dict(),
+        instance_tags = dict(type='dict'),
+        vpc_subnet_id = dict(),
+        assign_public_ip = dict(type='bool', default=False),
+        private_ip = dict(),
+        instance_profile_name = dict(),
+        instance_ids = dict(type='list', aliases=['instance_id']),
+        source_dest_check = dict(type='bool', default=True),
+        termination_protection = dict(type='bool', default=None),
+        state = dict(default='present', choices=['present', 'absent', 'running', 'restarted', 'stopped']),
+        instance_initiated_shutdown_behavior=dict(default=None, choices=['stop', 'terminate']),
+        exact_count = dict(type='int', default=None),
+        count_tag = dict(),
+        volumes = dict(type='list'),
+        ebs_optimized = dict(type='bool', default=False),
+        tenancy = dict(default='default'),
+        network_interfaces = dict(type='list', aliases=['network_interface'])
+    )
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
         mutually_exclusive = [
-                                ['exact_count', 'count'],
-                                ['exact_count', 'state'],
-                                ['exact_count', 'instance_ids'],
-                                ['network_interfaces', 'assign_public_ip'],
-                                ['network_interfaces', 'group'],
-                                ['network_interfaces', 'group_id'],
-                                ['network_interfaces', 'private_ip'],
-                                ['network_interfaces', 'vpc_subnet_id'],
-                             ],
+            ['exact_count', 'count'],
+            ['exact_count', 'state'],
+            ['exact_count', 'instance_ids'],
+            ['network_interfaces', 'assign_public_ip'],
+            ['network_interfaces', 'group'],
+            ['network_interfaces', 'group_id'],
+            ['network_interfaces', 'private_ip'],
+            ['network_interfaces', 'vpc_subnet_id'],
+            ],
     )
 
     if not HAS_BOTO:

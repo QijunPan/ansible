@@ -415,7 +415,7 @@ def get_download_url(module, s3, bucket, obj, expiry, changed=True):
 def is_fakes3(s3_url):
     """ Return True if s3_url has scheme fakes3:// """
     if s3_url is not None:
-        return urlparse.urlparse(s3_url).scheme in ('fakes3', 'fakes3s')
+        return urlparse(s3_url).scheme in ('fakes3', 'fakes3s')
     else:
         return False
 
@@ -424,8 +424,8 @@ def is_walrus(s3_url):
 
     We assume anything other than *.amazonaws.com is Walrus"""
     if s3_url is not None:
-        o = urlparse.urlparse(s3_url)
-        return not o.hostname.endswith('amazonaws.com')
+        o = urlparse(s3_url)
+        return not o.netloc.endswith('amazonaws.com')
     else:
         return False
 
@@ -433,25 +433,25 @@ def is_walrus(s3_url):
 def main():
     argument_spec = ec2_argument_spec()
     argument_spec.update(dict(
-            bucket         = dict(required=True),
-            dest           = dict(default=None),
-            encrypt        = dict(default=True, type='bool'),
-            expiry         = dict(default=600, aliases=['expiration']),
-            headers        = dict(type='dict'),
-            marker         = dict(default=None),
-            max_keys       = dict(default=1000),
-            metadata       = dict(type='dict'),
-            mode           = dict(choices=['get', 'put', 'delete', 'create', 'geturl', 'getstr', 'delobj', 'list'], required=True),
-            object         = dict(),
-            permission     = dict(type='list', default=['private']),
-            version        = dict(default=None),
-            overwrite      = dict(aliases=['force'], default='always'),
-            prefix         = dict(default=None),
-            retries        = dict(aliases=['retry'], type='int', default=0),
-            s3_url         = dict(aliases=['S3_URL']),
-            rgw            = dict(default='no', type='bool'),
-            src            = dict(),
-        ),
+        bucket         = dict(required=True),
+        dest           = dict(default=None),
+        encrypt        = dict(default=True, type='bool'),
+        expiry         = dict(default=600, aliases=['expiration']),
+        headers        = dict(type='dict'),
+        marker         = dict(default=None),
+        max_keys       = dict(default=1000),
+        metadata       = dict(type='dict'),
+        mode           = dict(choices=['get', 'put', 'delete', 'create', 'geturl', 'getstr', 'delobj', 'list'], required=True),
+        object         = dict(),
+        permission     = dict(type='list', default=['private']),
+        version        = dict(default=None),
+        overwrite      = dict(aliases=['force'], default='always'),
+        prefix         = dict(default=None),
+        retries        = dict(aliases=['retry'], type='int', default=0),
+        s3_url         = dict(aliases=['S3_URL']),
+        rgw            = dict(default='no', type='bool'),
+        src            = dict(),
+    ),
     )
     module = AnsibleModule(argument_spec=argument_spec)
 
@@ -517,34 +517,7 @@ def main():
     # Look at s3_url and tweak connection settings
     # if connecting to RGW, Walrus or fakes3
     try:
-        if s3_url and rgw:
-            rgw = urlparse.urlparse(s3_url)
-            s3 = boto.connect_s3(
-                is_secure=rgw.scheme == 'https',
-                host=rgw.hostname,
-                port=rgw.port,
-                calling_format=OrdinaryCallingFormat(),
-                **aws_connect_kwargs
-            )
-        elif is_fakes3(s3_url):
-            fakes3 = urlparse.urlparse(s3_url)
-            s3 = S3Connection(
-                is_secure=fakes3.scheme == 'fakes3s',
-                host=fakes3.hostname,
-                port=fakes3.port,
-                calling_format=OrdinaryCallingFormat(),
-                **aws_connect_kwargs
-            )
-        elif is_walrus(s3_url):
-            walrus = urlparse.urlparse(s3_url).hostname
-            s3 = boto.connect_walrus(walrus, **aws_connect_kwargs)
-        else:
-            aws_connect_kwargs['is_secure'] = True
-            try:
-                s3 = connect_to_aws(boto.s3, location, **aws_connect_kwargs)
-            except AnsibleAWSError:
-                # use this as fallback because connect_to_region seems to fail in boto + non 'classic' aws accounts in some cases
-                s3 = boto.connect_s3(**aws_connect_kwargs)
+        s3 = get_s3_connection(aws_connect_kwargs, location, rgw, s3_url)
 
     except boto.exception.NoAuthHandlerFound as e:
         module.fail_json(msg='No Authentication Handler found: %s ' % str(e))
@@ -601,7 +574,7 @@ def main():
     if mode == 'put':
 
         # Use this snippet to debug through conditionals:
-#       module.exit_json(msg="Bucket return %s"%bucketrtn)
+        # module.exit_json(msg="Bucket return %s"%bucketrtn)
 
         # Lets check the src path.
         pathrtn = path_check(src)
@@ -615,21 +588,21 @@ def main():
 
         # Lets check key state. Does it exist and if it does, compute the etag md5sum.
         if bucketrtn is True and keyrtn is True:
-                md5_remote = keysum(module, s3, bucket, obj)
-                md5_local = module.md5(src)
+            md5_remote = keysum(module, s3, bucket, obj)
+            md5_local = module.md5(src)
 
-                if md5_local == md5_remote:
-                    sum_matches = True
-                    if overwrite == 'always':
-                        upload_s3file(module, s3, bucket, obj, src, expiry, metadata, encrypt, headers)
-                    else:
-                        get_download_url(module, s3, bucket, obj, expiry, changed=False)
+            if md5_local == md5_remote:
+                sum_matches = True
+                if overwrite == 'always':
+                    upload_s3file(module, s3, bucket, obj, src, expiry, metadata, encrypt, headers)
                 else:
-                    sum_matches = False
-                    if overwrite in ('always', 'different'):
-                        upload_s3file(module, s3, bucket, obj, src, expiry, metadata, encrypt, headers)
-                    else:
-                        module.exit_json(msg="WARNING: Checksums do not match. Use overwrite parameter to force upload.")
+                    get_download_url(module, s3, bucket, obj, expiry, changed=False)
+            else:
+                sum_matches = False
+                if overwrite in ('always', 'different'):
+                    upload_s3file(module, s3, bucket, obj, src, expiry, metadata, encrypt, headers)
+                else:
+                    module.exit_json(msg="WARNING: Checksums do not match. Use overwrite parameter to force upload.")
 
         # If neither exist (based on bucket existence), we can create both.
         if bucketrtn is False and pathrtn is True:
@@ -643,7 +616,7 @@ def main():
     # Delete an object from a bucket, not the entire bucket
     if mode == 'delobj':
         if obj is None:
-            module.fail_json(msg="object parameter is required", failed=True);
+            module.fail_json(msg="object parameter is required", failed=True)
         if bucket:
             bucketrtn = bucket_check(module, s3, bucket)
             if bucketrtn is True:
@@ -735,6 +708,39 @@ def main():
                         module.fail_json(msg="Key %s does not exist."%obj, failed=True)
 
     module.exit_json(failed=False)
+
+
+def get_s3_connection(aws_connect_kwargs, location, rgw, s3_url):
+    if s3_url and rgw:
+        rgw = urlparse(s3_url)
+        s3 = boto.connect_s3(
+            is_secure=rgw.scheme == 'https',
+            host=rgw.hostname,
+            port=rgw.port,
+            calling_format=OrdinaryCallingFormat(),
+            **aws_connect_kwargs
+        )
+    elif is_fakes3(s3_url):
+        fakes3 = urlparse(s3_url)
+        s3 = S3Connection(
+            is_secure=fakes3.scheme == 'fakes3s',
+            host=fakes3.hostname,
+            port=fakes3.port,
+            calling_format=OrdinaryCallingFormat(),
+            **aws_connect_kwargs
+        )
+    elif is_walrus(s3_url):
+        walrus = urlparse(s3_url).hostname
+        s3 = boto.connect_walrus(walrus, **aws_connect_kwargs)
+    else:
+        aws_connect_kwargs['is_secure'] = True
+        try:
+            s3 = connect_to_aws(boto.s3, location, **aws_connect_kwargs)
+        except AnsibleAWSError:
+            # use this as fallback because connect_to_region seems to fail in boto + non 'classic' aws accounts in some cases
+            s3 = boto.connect_s3(**aws_connect_kwargs)
+    return s3
+
 
 # import module snippets
 from ansible.module_utils.basic import *
