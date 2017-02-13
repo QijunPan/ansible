@@ -144,7 +144,9 @@ Ansible Changes By Release
 - logstash_plugin
 - net_command
 - netapp
+  * sf_account_manager
   * sf_snapshot_schedule_manager
+  * sf_volume_access_group_manager
 - nginx_status_facts
 - omapi_host
 - openssl:
@@ -200,6 +202,7 @@ Ansible Changes By Release
 - panos:
   * panos_admin
   * panos_admpwd
+  * panos_cert_gen_ssh
   * panos_check
   * panos_commit
   * panos_dag
@@ -227,6 +230,7 @@ Ansible Changes By Release
   * vmadm
 - sorcery
 - stacki_host
+- swupd
 - tempfile
 - tower:
   * tower_organization

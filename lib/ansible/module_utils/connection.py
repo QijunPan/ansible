@@ -1,3 +1,4 @@
+#
 # This code is part of Ansible, but is an independent component.
 # This particular file snippet, and this file snippet only, is BSD licensed.
 # Modules you write using this snippet, which is embedded dynamically by Ansible
@@ -25,59 +26,50 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from contextlib import contextmanager
+import socket
+import struct
+import signal
 
-from ncclient.xml_ import new_ele, sub_ele, to_xml, to_ele
+from ansible.module_utils.basic import get_exception
+from ansible.module_utils._text import to_bytes, to_native
 
-from ansible.module_utils.connection import exec_command
+def send_data(s, data):
+    packed_len = struct.pack('!Q',len(data))
+    return s.sendall(packed_len + data)
 
-def send_request(module, obj, check_rc=True):
-    request = to_xml(obj)
-    rc, out, err = exec_command(module, request)
-    if rc != 0:
-        if check_rc:
-            module.fail_json(msg=str(err))
-        return to_ele(err)
-    return to_ele(out)
+def recv_data(s):
+    header_len = 8 # size of a packed unsigned long long
+    data = to_bytes("")
+    while len(data) < header_len:
+        d = s.recv(header_len - len(data))
+        if not d:
+            return None
+        data += d
+    data_len = struct.unpack('!Q',data[:header_len])[0]
+    data = data[header_len:]
+    while len(data) < data_len:
+        d = s.recv(data_len - len(data))
+        if not d:
+            return None
+        data += d
+    return data
 
-def children(root, iterable):
-    for item in iterable:
-        try:
-            ele = sub_ele(ele, item)
-        except NameError:
-            ele = sub_ele(root, item)
-
-def lock(module, target='candidate'):
-    obj = new_ele('lock')
-    children(obj, ('target', target))
-    return send_request(module, obj)
-
-def unlock(module, target='candidate'):
-    obj = new_ele('unlock')
-    children(obj, ('target', target))
-    return send_request(module, obj)
-
-def commit(module):
-    return send_request(module, new_ele('commit'))
-
-def discard_changes(module):
-    return send_request(module, new_ele('discard-changes'))
-
-def validate(module):
-    obj = new_ele('validate')
-    children(obj, ('source', 'candidate'))
-    return send_request(module, obj)
-
-def get_config(module, source='running', filter=None):
-    obj = new_ele('get-config')
-    children(obj, ('source', source))
-    children(obj, ('filter', filter))
-    return send_request(module, obj)
-
-@contextmanager
-def locked_config(module):
+def exec_command(module, command):
     try:
-        lock(module)
-        yield
-    finally:
-        unlock(module)
+        sf = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sf.connect(module._socket_path)
+
+        data = "EXEC: %s" % command
+        send_data(sf, to_bytes(data.strip()))
+
+        rc = int(recv_data(sf), 10)
+        stdout = recv_data(sf)
+        stderr = recv_data(sf)
+    except socket.error:
+        exc = get_exception()
+        sf.close()
+        module.fail_json(msg='unable to connect to socket', err=str(exc))
+
+    sf.close()
+
+    return (rc, to_native(stdout), to_native(stderr))
